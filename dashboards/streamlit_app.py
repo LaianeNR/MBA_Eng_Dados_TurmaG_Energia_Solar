@@ -836,24 +836,12 @@ def predict_scenario(sim_base, serie_band, reference_month, scenario, horizon):
     return probability, reference_month + horizon, len(train)
 
 
-def get_app_url():
-    """Use the deployed host for the QR Code; optionally override with DASHBOARD_URL."""
-    configured = os.getenv("DASHBOARD_URL")
-    if configured:
-        return configured.rstrip("/")
-
-    try:
-        host = st.context.headers.get("host")
-        proto = st.context.headers.get("x-forwarded-proto", "https")
-        if host:
-            return f"{proto}://{host}"
-    except Exception:
-        pass
-    return ""
+GITHUB_PROJECT_URL = "https://github.com/FabioFumioWada/MACK_MBA_Eng_Dados_TurmaG_Energia_Solar"
 
 
 def render_qr():
-    url = get_app_url()
+    """QR Code for the project GitHub link requested for the presentation."""
+    url = GITHUB_PROJECT_URL
     if not url:
         st.info("O QR Code aparecerá quando o app estiver publicado.")
         return
@@ -1252,23 +1240,132 @@ with tabs[0]:
         """
         <div class="section-head">
           <div class="section-title">
-            <h2>Acesse o dashboard</h2>
-            <p>QR Code para abrir a aplicação diretamente no celular durante a apresentação.</p>
+            <h2>Da pergunta ao modelo</h2>
+            <p>A história do projeto antes da resposta final.</p>
           </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
+
+    st.markdown(
+        """
+        <div class="question">
+          <div class="question-bar"></div>
+          <div>
+            <div class="eyebrow">PROBLEMA</div>
+            <div class="question-text">
+              A bandeira tarifária é observada no presente. Nosso desafio foi investigar
+              se os sinais disponíveis hoje conseguem antecipar o risco de bandeira vermelha
+              nos próximos meses.
+            </div>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown(
+        """
+        <div class="question">
+          <div class="question-bar"></div>
+          <div>
+            <div class="eyebrow">PERGUNTA DE NEGÓCIO</div>
+            <div class="question-text">
+              Com as informações disponíveis hoje, conseguimos estimar a probabilidade
+              de bandeira vermelha em M+1, M+2 e M+3?
+            </div>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown("### Arquitetura da solução")
+    st.caption(
+        "Fluxo técnico que sustenta o dashboard: dados oficiais → camadas de dados → "
+        "modelo → camada de consumo."
+    )
+
+    arch = st.columns(5)
+    arch_data = [
+        ("01", "FONTES", "ANEEL · ONS · INMET · outras fontes oficiais"),
+        ("02", "RAW", "Dados brutos preservados para ingestão"),
+        ("03", "TRUSTED", "Padronização, qualidade e relacionamentos"),
+        ("04", "REFINED + ML", "Tabelas analíticas e modelo de previsão"),
+        ("05", "STREAMLIT", "Visualização, previsão e simulador"),
+    ]
+    for col, (num, title, desc) in zip(arch, arch_data):
+        with col:
+            st.markdown(
+                f"""
+                <div class="impact-card" style="min-height:170px;">
+                  <div class="impact-icon">{num}</div>
+                  <h4>{title}</h4>
+                  <p>{desc}</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+    st.markdown(
+        """
+        <div class="closing">
+          <div class="quote">→</div>
+          <div class="closing-text">
+            Problema → pergunta → dados → histórico → modelo → previsão → decisão
+            <small>Essa é a sequência narrativa da apresentação.</small>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown(
+        """
+        <div class="section-head">
+          <div class="section-title">
+            <h2>Acesse o projeto</h2>
+            <p>QR Code para abrir o repositório GitHub durante a apresentação.</p>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
     with st.container(border=True):
         qr1, qr2 = st.columns([1, 2])
         with qr1:
             render_qr()
         with qr2:
-            st.markdown("### Demonstração ao vivo")
+            st.markdown("### Código e arquitetura")
             st.write(
-                "Use o QR Code para acompanhar o dashboard pelo celular "
-                "enquanto a equipe apresenta o histórico, o modelo e o simulador."
+                "O QR Code leva ao repositório do projeto. A aplicação publicada "
+                "é a camada de consumo; os dados e o processamento permanecem no Databricks."
             )
+
+    st.markdown(
+        """
+        <div class="section-head">
+          <div class="section-title">
+            <h2>Próximo passo da narrativa</h2>
+            <p>Antes de mostrar a previsão, entendemos o que aconteceu no histórico.</p>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.info(
+        "Começamos pelo histórico: quais bandeiras ocorreram, com que frequência e "
+        "quais períodos mudaram o comportamento da série. Só depois mostramos o modelo "
+        "e, por fim, a previsão."
+    )
+
+    # ------------------------------------------------------------
+    # Existing QR/overview block replaced by the architecture story.
+    # ------------------------------------------------------------
+    return
 
 
 # ------------------------------------------------------------
@@ -1685,6 +1782,13 @@ with tabs[4]:
         </div>
         """,
         unsafe_allow_html=True,
+    )
+
+    st.markdown("### Como contar essa história na apresentação")
+    st.info(
+        "1) problema e pergunta → 2) arquitetura e fontes → 3) histórico das bandeiras "
+        "→ 4) variáveis e insights → 5) modelos testados e métricas → 6) modelo final "
+        "→ 7) previsão de M+1/M+2/M+3 → 8) simulador → 9) conclusão e próximos passos."
     )
 
     st.markdown("### Como chegamos ao modelo final")
