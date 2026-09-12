@@ -1194,24 +1194,9 @@ with tabs[0]:
         unsafe_allow_html=True,
     )
 
-   if not db_ok:
-    st.error("Não foi possível conectar ao Databricks SQL Warehouse.")
-    st.caption("Diagnóstico técnico abaixo. O token nunca é exibido.")
-
-    try:
-        secret_status = {
-            "DATABRICKS_SERVER_HOSTNAME": "presente" if "DATABRICKS_SERVER_HOSTNAME" in st.secrets else "ausente",
-            "DATABRICKS_HTTP_PATH": "presente" if "DATABRICKS_HTTP_PATH" in st.secrets else "ausente",
-            "DATABRICKS_TOKEN": "presente" if "DATABRICKS_TOKEN" in st.secrets else "ausente",
-        }
-
-        st.json({
-            "secrets": secret_status,
-            "erro": str(db_error)[:1200],
-        })
-
-    except Exception:
-        st.caption("Não foi possível exibir o diagnóstico técnico.")
+    if not db_ok:
+        st.error("Não foi possível conectar ao Databricks SQL Warehouse.")
+        st.caption("Verifique os três Secrets do aplicativo. Nenhum token é exibido pelo dashboard.")
     else:
         st.markdown(html_cards(current_flag, current_date, model_status), unsafe_allow_html=True)
 
