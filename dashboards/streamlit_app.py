@@ -1019,30 +1019,33 @@ def risk_label(probability):
     return "RISCO MODERADO", "#087cff"
 
 
-def forecast_cards_html(forecasts, reference_month):
-    cards = []
-    for item in forecasts:
+def render_forecast_cards(forecasts, reference_month):
+    """Render M+1/M+2/M+3 with native Streamlit components, avoiding raw HTML leakage."""
+    cols = st.columns(3, gap="medium")
+    for col, item in zip(cols, forecasts):
         p = item.get("probability")
         target = item.get("target")
         n_train = item.get("n_train")
-        label, color = risk_label(p)
+        label, _ = risk_label(p)
         value = "—" if p is None else f"{p:.1%}"
         target_txt = target.strftime("%m/%Y") if hasattr(target, "strftime") else "—"
-        note = f"{label} · referência {reference_month.strftime('%m/%Y')}" if p is not None else "Previsão indisponível"
-        train_note = f"{n_train} observações de treino" if n_train is not None else "Base de treino indisponível"
-        cards.append(
-            f"""
-            <div class="risk-card" style="--card-color:{color};">
-              <div class="risk-inner">
-                <div class="risk-label">M+{item['h']} · {target_txt}</div>
-                <div class="risk-value">{value}</div>
-                <div class="risk-note">{note}<br>{train_note}</div>
-              </div>
-              <div class="risk-icon">⚡</div>
-            </div>
-            """
-        )
-    return '<div class="cards">' + "".join(cards) + "</div>"
+
+        with col:
+            if p is not None:
+                st.metric(
+                    label=f"M+{item['h']} · {target_txt}",
+                    value=value,
+                    delta=label,
+                    delta_color="inverse" if label == "ALTO RISCO" else "off",
+                )
+                st.progress(float(max(0.0, min(1.0, p))))
+                st.caption(
+                    f"Probabilidade estimada de bandeira vermelha · "
+                    f"{n_train} observações de treino · referência {reference_month.strftime('%m/%Y')}"
+                )
+            else:
+                st.metric(label=f"M+{item['h']} · {target_txt}", value="—")
+                st.caption("Previsão indisponível")
 
 
 def flag_history_chart(df):
@@ -1543,7 +1546,7 @@ with tabs[0]:
         st.error("Não foi possível conectar ao Databricks SQL Warehouse.")
         st.caption("Verifique os três Secrets do aplicativo. Nenhum token é exibido pelo dashboard.")
     elif current_forecasts and forecast_reference is not None:
-        st.markdown(forecast_cards_html(current_forecasts, forecast_reference), unsafe_allow_html=True)
+        render_forecast_cards(current_forecasts, forecast_reference)
     else:
         st.markdown(html_cards(current_flag, current_date, model_status), unsafe_allow_html=True)
 
@@ -1751,7 +1754,7 @@ with tabs[1]:
     )
 
     if current_forecasts and forecast_reference is not None:
-        st.markdown(forecast_cards_html(current_forecasts, forecast_reference), unsafe_allow_html=True)
+        render_forecast_cards(current_forecasts, forecast_reference)
         st.success(
             f"Previsão calculada com dados reais do Databricks, usando referência de {forecast_reference.strftime('%m/%Y')} "
             "e a mesma lógica do modelo 07."
