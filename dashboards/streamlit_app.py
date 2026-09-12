@@ -1,9 +1,16 @@
 
+import io
+import math
 import os
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import streamlit as st
+from sklearn.impute import SimpleImputer
+from sklearn.linear_model import LogisticRegression
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
 
 st.set_page_config(
     page_title="Previsão de Bandeiras | Energy Intelligence",
@@ -659,6 +666,216 @@ def query_df(query: str) -> pd.DataFrame:
         conn.close()
 
 
+
+@st.cache_data(ttl=300)
+def load_model_source_data():
+    """Load the same real sources used by the final notebook 07."""
+    clima = query_df(f"""
+        SELECT MesCompetencia, MesReferenciaClima, PrecipitacaoMediaMm,
+               PrecipitacaoAcumuladaMm, PrecipitacaoPctNormal,
+               TemperaturaMediaC, UmidadeMediaPct
+        FROM {REFINED}.f_modelo_bandeira_clima
+        ORDER BY MesCompetencia
+    """)
+    band = query_df(f"""
+        SELECT MesCompetencia, IsVermelha
+        FROM {TRUSTED}.f_bandeira
+        ORDER BY MesCompetencia
+    """)
+    ear = query_df(f"""
+        SELECT ear_data AS Data, id_subsistema,
+               CAST(ear_verif_subsistema_percentual AS DOUBLE) AS Valor
+        FROM {TRUSTED}.f_ear_subsistema
+        WHERE id_subsistema = 'SE' AND ear_data IS NOT NULL
+        ORDER BY ear_data
+    """)
+    return clima, band, ear
+
+
+def periodo_yyyymm(value):
+    """Normalize date/int/string values to pandas Period('YYYY-MM')."""
+    if pd.isna(value):
+        return pd.NaT
+    text = str(value)[:10]
+    if len(text) == 6 and text.isdigit():
+        return pd.Period(text, freq="M")
+    parsed = pd.to_datetime(text, errors="coerce")
+    if pd.isna(parsed):
+        return pd.NaT
+    return parsed.to_period("M")
+
+
+SIM_MARCOS = {
+    "regime_gsf_pld": ("2018-12", None),
+    "regime_faixas_2019": ("2019-06", None),
+    "intervencao_pandemia": ("2020-05", "2020-11"),
+    "intervencao_escassez": ("2021-09", "2022-04"),
+}
+SIM_FEATURES = [
+    "mes_clima", "chuva_media", "chuva_pct_normal_ok", "temperatura",
+    "umidade", "bandeira_origem", "ear_pct", *SIM_MARCOS.keys()
+]
+
+
+def marca_regime(meses, inicio, fim=None):
+    v = meses >= pd.Period(inicio, "M")
+    if fim is not None:
+        v = v & (meses <= pd.Period(fim, "M"))
+    return v.astype(int)
+
+
+def montar_base_simulador(clima, band, ear):
+    """Reproduce the feature construction of notebook 07 using real data."""
+    c = clima.copy()
+    b = band.copy()
+    e = ear.copy()
+
+    c["origem"] = c["MesReferenciaClima"].map(periodo_yyyymm)
+    c["competencia"] = c["MesCompetencia"].map(periodo_yyyymm)
+    b["periodo"] = b["MesCompetencia"].map(periodo_yyyymm)
+    e["mes"] = pd.to_datetime(e["Data"], errors="coerce").dt.to_period("M")
+
+    serie_band = (
+        b.dropna(subset=["periodo"])
+        .set_index("periodo")["IsVermelha"]
+        .astype(float)
+        .sort_index()
+    )
+    ear_se = e.dropna(subset=["mes"]).groupby("mes")["Valor"].mean()
+
+    c["bandeira_origem"] = [
+        float(serie_band.get(o - 1, np.nan)) for o in c["origem"]
+    ]
+    c = c.dropna(subset=["origem", "competencia", "bandeira_origem"]).copy()
+    c["mes_clima"] = [p.month for p in c["origem"]]
+    c["chuva_media"] = pd.to_numeric(c["PrecipitacaoMediaMm"], errors="coerce")
+    c["chuva_acum"] = pd.to_numeric(c["PrecipitacaoAcumuladaMm"], errors="coerce")
+    c["temperatura"] = pd.to_numeric(c["TemperaturaMediaC"], errors="coerce")
+    c["umidade"] = pd.to_numeric(c["UmidadeMediaPct"], errors="coerce")
+    c["ear_pct"] = [float(ear_se.get(o, np.nan)) for o in c["origem"]]
+
+    # Same expanding rainfall-normal logic used by notebook 07:
+    # only previous occurrences of the same calendar month.
+    c = c.sort_values("origem").reset_index(drop=True)
+    normals = []
+    for i, row in c.iterrows():
+        previous = c.loc[:i - 1]
+        same_month = previous[
+            previous["mes_clima"] == row["mes_clima"]
+        ]["chuva_acum"].dropna()
+        normals.append(float(same_month.mean()) if len(same_month) else np.nan)
+
+    c["normal_expansiva"] = normals
+    reported_pct = pd.to_numeric(c["PrecipitacaoPctNormal"], errors="coerce")
+    c["chuva_pct_normal_ok"] = np.where(
+        c["normal_expansiva"] > 0,
+        c["chuva_acum"] / c["normal_expansiva"] * 100,
+        reported_pct,
+    )
+    c["IsVermelha"] = [
+        int(serie_band.get(p, np.nan)) if p in serie_band.index else np.nan
+        for p in c["competencia"]
+    ]
+    c = c.dropna(subset=["IsVermelha"]).copy()
+    c["IsVermelha"] = c["IsVermelha"].astype(int)
+    return c, serie_band
+
+
+def peso_amostra_sim(y, alvos):
+    classes, counts = np.unique(y, return_counts=True)
+    n = len(y)
+    class_weights = {
+        cls: n / (len(classes) * count)
+        for cls, count in zip(classes, counts)
+    }
+    class_w = np.array([class_weights[v] for v in y])
+    recent_w = np.where(
+        pd.PeriodIndex(alvos) >= pd.Period("2024-04", "M"), 5.0, 1.0
+    )
+    return class_w * recent_w
+
+
+def fit_model_sim(X, y, alvos):
+    model = Pipeline([
+        ("imp", SimpleImputer(strategy="median")),
+        ("sc", StandardScaler()),
+        ("clf", LogisticRegression(max_iter=5000, random_state=42)),
+    ])
+    model.fit(X, y, clf__sample_weight=peso_amostra_sim(y, alvos))
+    return model
+
+
+def predict_scenario(sim_base, serie_band, reference_month, scenario, horizon):
+    """Train exactly the notebook-07 recipe up to the reference month, then score a manual scenario."""
+    eligible = []
+    for _, row in sim_base.iterrows():
+        origem = row["origem"]
+        alvo = origem + horizon
+        if alvo in serie_band.index and alvo <= reference_month:
+            item = {c: row[c] for c in SIM_FEATURES if c not in SIM_MARCOS}
+            item["alvo_mes"] = alvo
+            item["y"] = int(serie_band.loc[alvo])
+            eligible.append(item)
+
+    train = pd.DataFrame(eligible)
+    if len(train) < 36 or train["y"].nunique() < 2:
+        raise ValueError(f"Base histórica insuficiente para M+{horizon}.")
+
+    for name, (ini, fim) in SIM_MARCOS.items():
+        train[name] = marca_regime(
+            pd.PeriodIndex(train["alvo_mes"]), ini, fim
+        )
+
+    model = fit_model_sim(
+        train[SIM_FEATURES],
+        train["y"].values,
+        train["alvo_mes"].values,
+    )
+    x_scenario = pd.DataFrame([scenario])[SIM_FEATURES]
+    probability = float(model.predict_proba(x_scenario)[0][1])
+    return probability, reference_month + horizon, len(train)
+
+
+def get_app_url():
+    """Use the deployed host for the QR Code; optionally override with DASHBOARD_URL."""
+    configured = os.getenv("DASHBOARD_URL")
+    if configured:
+        return configured.rstrip("/")
+
+    try:
+        host = st.context.headers.get("host")
+        proto = st.context.headers.get("x-forwarded-proto", "https")
+        if host:
+            return f"{proto}://{host}"
+    except Exception:
+        pass
+    return ""
+
+
+def render_qr():
+    url = get_app_url()
+    if not url:
+        st.info("O QR Code aparecerá quando o app estiver publicado.")
+        return
+
+    try:
+        import qrcode
+
+        qr = qrcode.QRCode(version=None, box_size=8, border=3)
+        qr.add_data(url)
+        qr.make(fit=True)
+        img = qr.make_image()
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+
+        st.image(buf.getvalue(), width=180)
+        st.caption(
+            f"Aponte a câmera do celular para abrir o dashboard.\n{url}"
+        )
+    except Exception as exc:
+        st.warning(f"Não foi possível gerar o QR Code: {exc}")
+
+
 @st.cache_data(ttl=300)
 def load_bandeiras():
     return query_df(f"""
@@ -885,6 +1102,7 @@ try:
     df_model = load_model_features()
     df_clima = load_clima()
     df_training = load_training()
+    df_sim_clima, df_sim_band, df_sim_ear = load_model_source_data()
     db_ok = True
     db_error = None
 except Exception as exc:
@@ -892,6 +1110,9 @@ except Exception as exc:
     df_model = pd.DataFrame()
     df_clima = pd.DataFrame()
     df_training = pd.DataFrame()
+    df_sim_clima = pd.DataFrame()
+    df_sim_band = pd.DataFrame()
+    df_sim_ear = pd.DataFrame()
     db_ok = False
     db_error = str(exc)
 
@@ -1027,6 +1248,28 @@ with tabs[0]:
 
     st.markdown(closing_section(), unsafe_allow_html=True)
 
+    st.markdown(
+        """
+        <div class="section-head">
+          <div class="section-title">
+            <h2>Acesse o dashboard</h2>
+            <p>QR Code para abrir a aplicação diretamente no celular durante a apresentação.</p>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    with st.container(border=True):
+        qr1, qr2 = st.columns([1, 2])
+        with qr1:
+            render_qr()
+        with qr2:
+            st.markdown("### Demonstração ao vivo")
+            st.write(
+                "Use o QR Code para acompanhar o dashboard pelo celular "
+                "enquanto a equipe apresenta o histórico, o modelo e o simulador."
+            )
+
 
 # ------------------------------------------------------------
 # TAB 2 — Previsão
@@ -1103,6 +1346,153 @@ with tabs[1]:
         )
     else:
         st.error("Sem conexão com o Databricks.")
+
+    st.markdown(
+        """
+        <div class="section-head">
+          <div class="section-title">
+            <h2>Simulador de cenários</h2>
+            <p>Altere as variáveis de entrada e observe como o modelo real responde.</p>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    if db_ok and not df_sim_clima.empty and not df_sim_band.empty and not df_sim_ear.empty:
+        try:
+            sim_base, sim_series = montar_base_simulador(
+                df_sim_clima, df_sim_band, df_sim_ear
+            )
+            refs = sorted(sim_base["origem"].dropna().unique())
+            default_ref = (
+                pd.Period("2026-08", "M")
+                if pd.Period("2026-08", "M") in refs
+                else refs[-1]
+            )
+            ref = st.selectbox(
+                "Mês de referência",
+                refs,
+                index=refs.index(default_ref),
+                format_func=lambda p: p.strftime("%m/%Y"),
+            )
+            ref_row = (
+                sim_base[sim_base["origem"] == ref]
+                .sort_values("competencia")
+                .iloc[0]
+            )
+
+            with st.form("form_simulador"):
+                c1, c2, c3 = st.columns(3)
+
+                with c1:
+                    temperatura = st.number_input(
+                        "Temperatura média (°C)",
+                        value=float(ref_row["temperatura"])
+                        if pd.notna(ref_row["temperatura"]) else 25.0,
+                        step=0.5,
+                    )
+                    chuva_media = st.number_input(
+                        "Chuva média (mm)",
+                        value=float(ref_row["chuva_media"])
+                        if pd.notna(ref_row["chuva_media"]) else 100.0,
+                        step=5.0,
+                    )
+
+                with c2:
+                    chuva_pct = st.number_input(
+                        "Chuva (% da normal)",
+                        value=float(ref_row["chuva_pct_normal_ok"])
+                        if pd.notna(ref_row["chuva_pct_normal_ok"]) else 100.0,
+                        step=5.0,
+                    )
+                    umidade = st.number_input(
+                        "Umidade média (%)",
+                        value=float(ref_row["umidade"])
+                        if pd.notna(ref_row["umidade"]) else 70.0,
+                        step=1.0,
+                    )
+
+                with c3:
+                    ear = st.number_input(
+                        "EAR SE (%)",
+                        value=float(ref_row["ear_pct"])
+                        if pd.notna(ref_row["ear_pct"]) else 50.0,
+                        step=1.0,
+                    )
+                    band_ant = st.selectbox(
+                        "Bandeira anterior",
+                        [0, 1],
+                        index=int(float(ref_row["bandeira_origem"]))
+                        if pd.notna(ref_row["bandeira_origem"]) else 0,
+                        format_func=lambda x: (
+                            "Vermelha" if x == 1 else "Não vermelha"
+                        ),
+                    )
+
+                submitted = st.form_submit_button(
+                    "▶ SIMULAR CENÁRIO",
+                    use_container_width=True,
+                )
+
+            if submitted:
+                scenario = {
+                    "mes_clima": ref.month,
+                    "chuva_media": chuva_media,
+                    "chuva_pct_normal_ok": chuva_pct,
+                    "temperatura": temperatura,
+                    "umidade": umidade,
+                    "bandeira_origem": band_ant,
+                    "ear_pct": ear,
+                }
+
+                results = []
+                for h in (1, 2, 3):
+                    try:
+                        p, target, n_train = predict_scenario(
+                            sim_base, sim_series, ref, scenario, h
+                        )
+                        results.append((h, p, target, n_train))
+                    except Exception as exc:
+                        results.append((h, None, ref + h, None))
+                        st.warning(f"M+{h}: {exc}")
+
+                cards = st.columns(3)
+                for col, (h, p, target, n_train) in zip(cards, results):
+                    with col:
+                        if p is None:
+                            st.metric(
+                                f"M+{h} · {target.strftime('%m/%Y')}",
+                                "—",
+                            )
+                        else:
+                            st.metric(
+                                f"M+{h} · {target.strftime('%m/%Y')}",
+                                f"{p:.1%}",
+                            )
+                            st.caption(
+                                "Probabilidade estimada de bandeira vermelha"
+                            )
+                            st.progress(min(max(p, 0.0), 1.0))
+                            st.caption(
+                                f"Treino disponível até {ref.strftime('%m/%Y')}: "
+                                f"{n_train} observações"
+                            )
+
+                st.info(
+                    "Demonstração interativa: os valores inseridos manualmente "
+                    "alteram as entradas do mesmo algoritmo de regressão logística "
+                    "usado no notebook 07. Não substitui a previsão oficial do projeto."
+                )
+        except Exception as exc:
+            st.error(
+                f"Não foi possível preparar o simulador com os dados reais: {exc}"
+            )
+    else:
+        st.info(
+            "O simulador será habilitado quando as três fontes reais do modelo "
+            "estiverem disponíveis no Databricks."
+        )
 
 # ------------------------------------------------------------
 # TAB 3 — Variáveis
@@ -1204,10 +1594,42 @@ with tabs[3]:
         hist["NivelBandeira"] = pd.to_numeric(hist["NivelBandeira"], errors="coerce")
         hist = hist.dropna(subset=["MesCompetencia", "NivelBandeira"])
 
-        st.markdown("### Bandeiras ao longo do tempo")
+        st.markdown("### Evolução das bandeiras")
+        st.caption(
+            "O histórico preserva os níveis oficiais, em vez de reduzir tudo a vermelho vs. não vermelho."
+        )
         st.line_chart(
             hist.set_index("MesCompetencia")["NivelBandeira"],
             use_container_width=True,
+        )
+
+        dist = hist.copy()
+        dist["Bandeira"] = dist["NivelBandeira"].map(flag_name)
+        dist = (
+            dist["Bandeira"]
+            .value_counts()
+            .rename_axis("Bandeira")
+            .reset_index(name="Meses")
+        )
+        dist["Percentual"] = dist["Meses"] / dist["Meses"].sum() * 100
+
+        st.markdown("### Quanto tempo cada bandeira apareceu?")
+        st.dataframe(
+            dist,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Percentual": st.column_config.NumberColumn(
+                    "Percentual", format="%.1f%%"
+                )
+            },
+        )
+
+        st.markdown("### Um período histórico que merece atenção")
+        st.info(
+            "Entre maio e novembro de 2020, o modelo trata a pandemia como "
+            "um período de intervenção histórica. Essa marca regulatória ajuda "
+            "a separar um comportamento excepcional do padrão estrutural da série."
         )
 
         st.markdown("### Indicadores hidrológicos e do sistema")
@@ -1259,6 +1681,36 @@ with tabs[4]:
               → Feature Engineering → Regressão Logística
               → Probabilidade M+1 / M+2 / M+3
             </div>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown("### Como chegamos ao modelo final")
+    st.info(
+        "A equipe comparou diferentes abordagens e variações de modelagem "
+        "antes de definir a receita final. O notebook 07 usa regressão logística "
+        "com balanceamento de classes, padronização e peso maior para observações recentes. "
+        "As métricas oficiais devem ser apresentadas a partir do backtest executado no Databricks."
+    )
+    st.markdown(
+        """
+        <div class="impact-grid">
+          <div class="impact-card">
+            <div class="impact-icon">01</div>
+            <h4>COMPARAÇÃO</h4>
+            <p>Diferentes abordagens e variações foram avaliadas antes da definição da receita final.</p>
+          </div>
+          <div class="impact-card">
+            <div class="impact-icon">02</div>
+            <h4>PROTOCOLO</h4>
+            <p>Backtest por janela expansiva: o modelo usa apenas informação disponível até cada mês de origem.</p>
+          </div>
+          <div class="impact-card">
+            <div class="impact-icon">03</div>
+            <h4>ESCOLHA</h4>
+            <p>Regressão logística com balanceamento de classes, padronização e peso maior para observações recentes.</p>
           </div>
         </div>
         """,
