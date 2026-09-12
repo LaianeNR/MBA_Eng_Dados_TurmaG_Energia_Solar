@@ -626,6 +626,132 @@ st.markdown(
         .hero { padding:28px 22px; }
         .question-action { display:none; }
     }
+    /* Architecture visual */
+    .arch-wrap {
+        margin-top: 18px;
+        padding: 22px;
+        border: 1px solid #154563;
+        border-radius: 16px;
+        background: linear-gradient(135deg, rgba(10,33,51,.98), rgba(7,25,40,.98));
+    }
+
+    .arch-flow {
+        display:grid;
+        grid-template-columns: 1.05fr .95fr 1.55fr 1.05fr;
+        gap:10px;
+        align-items:stretch;
+    }
+
+    .arch-stage {
+        position:relative;
+        min-height:190px;
+        padding:18px 16px;
+        border:1px solid #1b4c69;
+        border-radius:14px;
+        background:#071b2b;
+    }
+
+    .arch-stage:not(:last-child)::after {
+        content:"→";
+        position:absolute;
+        right:-16px;
+        top:50%;
+        transform:translateY(-50%);
+        color:#1595ff;
+        font-size:22px;
+        font-weight:800;
+        z-index:3;
+    }
+
+    .arch-number {
+        color:#087cff;
+        font-size:11px;
+        font-weight:800;
+        letter-spacing:1.5px;
+        margin-bottom:8px;
+    }
+
+    .arch-stage h4 {
+        margin:0 0 10px 0;
+        color:#f5f8fb;
+        font-size:15px;
+        font-weight:800;
+    }
+
+    .arch-stage p {
+        margin:0 0 9px 0;
+        color:#a9bfce;
+        font-size:11px;
+        line-height:1.5;
+    }
+
+    .arch-pill {
+        display:inline-block;
+        margin:3px 4px 0 0;
+        padding:4px 7px;
+        border:1px solid #174762;
+        border-radius:999px;
+        color:#c9dbe7;
+        font-size:9px;
+        background:#0a2538;
+    }
+
+    .arch-layers {
+        display:grid;
+        gap:6px;
+        margin-top:8px;
+    }
+
+    .arch-layer {
+        padding:7px 9px;
+        border-radius:8px;
+        font-size:10px;
+        font-weight:700;
+        border-left:3px solid #087cff;
+        background:#0b2a40;
+        color:#dce8f0;
+    }
+
+    .arch-layer small {
+        display:block;
+        margin-top:2px;
+        color:#8fa8bb;
+        font-weight:400;
+        font-size:9px;
+    }
+
+    .arch-bottom {
+        display:grid;
+        grid-template-columns:1fr 1fr 1fr;
+        gap:10px;
+        margin-top:12px;
+    }
+
+    .arch-note {
+        padding:11px 13px;
+        border:1px solid #123d58;
+        border-radius:10px;
+        background:#061925;
+        color:#9fb6c5;
+        font-size:10px;
+        line-height:1.45;
+    }
+
+    .arch-note strong {
+        display:block;
+        color:#e9f2f8;
+        margin-bottom:3px;
+    }
+
+    @media (max-width: 900px) {
+        .arch-flow { grid-template-columns:1fr 1fr; }
+        .arch-stage:not(:last-child)::after { display:none; }
+    }
+
+    @media (max-width: 600px) {
+        .arch-flow, .arch-bottom { grid-template-columns:1fr; }
+    }
+
     </style>
     """,
     unsafe_allow_html=True,
@@ -930,6 +1056,21 @@ def safe_date(df, column):
     return df
 
 
+def month_index(df, primary="MesCompetencia", fallback="AnoMes"):
+    """Build a reliable monthly datetime index, using fallback when the primary is null."""
+    out = df.copy()
+    primary_dt = (
+        pd.to_datetime(out[primary].astype("string"), errors="coerce")
+        if primary in out.columns else pd.Series(pd.NaT, index=out.index)
+    )
+    fallback_dt = (
+        pd.to_datetime(out[fallback].astype("string"), errors="coerce")
+        if fallback in out.columns else pd.Series(pd.NaT, index=out.index)
+    )
+    out["_mes_dashboard"] = primary_dt.fillna(fallback_dt)
+    return out
+
+
 def flag_name(level):
     try:
         level = int(level)
@@ -1105,11 +1246,15 @@ except Exception as exc:
     db_error = str(exc)
 
 if db_ok and not df_bandeiras.empty:
-    df_bandeiras = safe_date(df_bandeiras, "MesCompetencia")
-    latest = df_bandeiras.sort_values("MesCompetencia").iloc[-1]
+    df_bandeiras = month_index(df_bandeiras)
+    valid_latest = df_bandeiras.dropna(subset=["_mes_dashboard"]).sort_values("_mes_dashboard")
+    latest = valid_latest.iloc[-1] if not valid_latest.empty else df_bandeiras.iloc[-1]
     current_flag = flag_name(latest.get("NivelBandeira"))
-    current_date = str(latest.get("MesCompetencia"))[:10]
-    model_status = "Saída do modelo ainda não persistida em tabela"
+    current_date = (
+        latest["_mes_dashboard"].strftime("%m/%Y")
+        if pd.notna(latest.get("_mes_dashboard")) else "—"
+    )
+    model_status = "Saída oficial do modelo ainda não persistida em tabela"
 else:
     current_flag = "—"
     current_date = "Databricks indisponível"
@@ -1218,6 +1363,75 @@ with tabs[0]:
         """
         <div class="section-head">
           <div class="section-title">
+            <h2>Como os dados viram uma previsão?</h2>
+            <p>A arquitetura conecta fontes, ingestão, camadas de dados, modelagem e consumo.</p>
+          </div>
+        </div>
+
+        <div class="arch-wrap">
+          <div class="arch-flow">
+            <div class="arch-stage">
+              <div class="arch-number">01 · FONTES</div>
+              <h4>Dados de entrada</h4>
+              <p>Fontes meteorológicas, operacionais e regulatórias alimentam o fluxo.</p>
+              <span class="arch-pill">INMET / CPTEC</span>
+              <span class="arch-pill">ONS / CCEE</span>
+              <span class="arch-pill">ANEEL</span>
+            </div>
+
+            <div class="arch-stage">
+              <div class="arch-number">02 · INGESTÃO</div>
+              <h4>Orquestração</h4>
+              <p>Scripts Python e automações conduzem a entrada e atualização dos dados.</p>
+              <span class="arch-pill">Python</span>
+              <span class="arch-pill">GitHub</span>
+              <span class="arch-pill">Jobs</span>
+            </div>
+
+            <div class="arch-stage">
+              <div class="arch-number">03 · DATA LAKE</div>
+              <h4>Camadas de dados</h4>
+              <div class="arch-layers">
+                <div class="arch-layer">STAGE <small>entrada / landing</small></div>
+                <div class="arch-layer">RAW <small>dados estruturados e validação</small></div>
+                <div class="arch-layer">TRUSTED <small>qualidade, fatos e dimensões</small></div>
+                <div class="arch-layer">REFINED <small>agregações de negócio e features</small></div>
+              </div>
+            </div>
+
+            <div class="arch-stage">
+              <div class="arch-number">04 · CONSUMO</div>
+              <h4>Decisão</h4>
+              <p>As tabelas refinadas alimentam visualização, análise e o produto preditivo.</p>
+              <span class="arch-pill">Streamlit</span>
+              <span class="arch-pill">ML / IA</span>
+              <span class="arch-pill">Relatórios</span>
+            </div>
+          </div>
+
+          <div class="arch-bottom">
+            <div class="arch-note">
+              <strong>Feature Engineering</strong>
+              Clima + EAR + histórico de bandeira + transformações temporais.
+            </div>
+            <div class="arch-note">
+              <strong>Modelo</strong>
+              Regressão logística com balanceamento, padronização e avaliação por backtest.
+            </div>
+            <div class="arch-note">
+              <strong>Saída</strong>
+              Probabilidade estimada de bandeira vermelha para M+1, M+2 e M+3.
+            </div>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown(
+        """
+        <div class="section-head">
+          <div class="section-title">
             <h2>Evidências no histórico</h2>
             <p>Os dados abaixo vêm diretamente das tabelas refinadas do Databricks.</p>
           </div>
@@ -1227,10 +1441,16 @@ with tabs[0]:
     )
 
     if db_ok and not df_bandeiras.empty:
-        chart = df_bandeiras[["MesCompetencia", "NivelBandeira"]].copy()
+        chart = month_index(df_bandeiras)
         chart["NivelBandeira"] = pd.to_numeric(chart["NivelBandeira"], errors="coerce")
-        chart = chart.dropna().set_index("MesCompetencia")
-        st.line_chart(chart["NivelBandeira"], use_container_width=True)
+        chart = chart.dropna(subset=["_mes_dashboard", "NivelBandeira"])
+        if not chart.empty:
+            st.line_chart(
+                chart.set_index("_mes_dashboard")["NivelBandeira"],
+                use_container_width=True,
+            )
+        else:
+            st.warning("Histórico sem datas válidas para visualização.")
     else:
         st.warning("Histórico indisponível.")
 
@@ -1542,6 +1762,14 @@ with tabs[1]:
                     "ear_pct": ear,
                 }
 
+                # The four regulatory markers are model features.
+                # Calculate them for each target horizon so the simulator
+                # uses the same feature schema as notebook 07.
+                for name, (ini, fim) in SIM_MARCOS.items():
+                    scenario[name] = int(
+                        marca_regime(pd.PeriodIndex([ref + 1]), ini, fim)[0]
+                    )
+
                 results = []
                 for h in (1, 2, 3):
                     try:
@@ -1551,7 +1779,7 @@ with tabs[1]:
                         results.append((h, p, target, n_train))
                     except Exception as exc:
                         results.append((h, None, ref + h, None))
-                        st.warning(f"M+{h}: {exc}")
+                        st.warning(f"M+{h}: não foi possível calcular o cenário ({type(exc).__name__}).")
 
                 cards = st.columns(3)
                 for col, (h, p, target, n_train) in zip(cards, results):
@@ -1685,19 +1913,20 @@ with tabs[3]:
     )
 
     if db_ok and not df_bandeiras.empty:
-        hist = df_bandeiras.copy()
-        hist["MesCompetencia"] = pd.to_datetime(hist["MesCompetencia"], errors="coerce")
+        hist = month_index(df_bandeiras)
         hist["NivelBandeira"] = pd.to_numeric(hist["NivelBandeira"], errors="coerce")
-        hist = hist.dropna(subset=["MesCompetencia", "NivelBandeira"])
+        hist = hist.dropna(subset=["_mes_dashboard", "NivelBandeira"])
 
         st.markdown("### Evolução das bandeiras")
         st.caption(
-            "O histórico preserva os níveis oficiais, em vez de reduzir tudo a vermelho vs. não vermelho."
+            "O histórico preserva os níveis oficiais. Quando MesCompetencia está vazio, "
+            "o dashboard usa AnoMes como referência temporal."
         )
-        st.line_chart(
-            hist.set_index("MesCompetencia")["NivelBandeira"],
-            use_container_width=True,
-        )
+        if not hist.empty:
+            st.line_chart(
+                hist.set_index("_mes_dashboard")["NivelBandeira"],
+                use_container_width=True,
+            )
 
         dist = hist.copy()
         dist["Bandeira"] = dist["NivelBandeira"].map(flag_name)
@@ -1738,13 +1967,15 @@ with tabs[3]:
             ] if c in hist.columns
         ]
         if cols:
-            numeric = hist[["MesCompetencia"] + cols].copy()
+            numeric = hist[["_mes_dashboard"] + cols].copy()
             for c in cols:
                 numeric[c] = pd.to_numeric(numeric[c], errors="coerce")
-            st.line_chart(
-                numeric.dropna(subset=["MesCompetencia"]).set_index("MesCompetencia")[cols],
-                use_container_width=True,
-            )
+            numeric = numeric.dropna(subset=["_mes_dashboard"])
+            if not numeric.empty:
+                st.line_chart(
+                    numeric.set_index("_mes_dashboard")[cols],
+                    use_container_width=True,
+                )
 
         st.dataframe(
             df_bandeiras.tail(12),
@@ -1869,8 +2100,39 @@ with tabs[5]:
           <div style="width:100%;">
             <div class="eyebrow">Arquitetura de dados</div>
             <div class="question-text">
-              Fontes → Raw → Trusted → Refined → Feature Engineering →
-              Modelo Preditivo → Probabilidade M+1 / M+2 / M+3 → Streamlit
+              Fontes → Orquestração & Ingestão → Stage / Raw / Trusted / Refined
+              → Feature Engineering → Modelo → Probabilidade M+1 / M+2 / M+3
+              → Streamlit
+            </div>
+          </div>
+        </div>
+
+        <div class="arch-wrap">
+          <div class="arch-flow">
+            <div class="arch-stage">
+              <div class="arch-number">FONTES</div>
+              <h4>Meteorologia + Sistema + Regulação</h4>
+              <p>INMET/CPTEC, indicadores operacionais e histórico regulatório de bandeiras.</p>
+            </div>
+            <div class="arch-stage">
+              <div class="arch-number">INGESTÃO</div>
+              <h4>Python + automação</h4>
+              <p>Coleta, padronização e disponibilização dos dados para as camadas do lake.</p>
+            </div>
+            <div class="arch-stage">
+              <div class="arch-number">DATA LAKE</div>
+              <h4>STAGE → RAW → TRUSTED → REFINED</h4>
+              <div class="arch-layers">
+                <div class="arch-layer">STAGE <small>landing / entrada</small></div>
+                <div class="arch-layer">RAW <small>estrutura e validação</small></div>
+                <div class="arch-layer">TRUSTED <small>qualidade + Star Schema</small></div>
+                <div class="arch-layer">REFINED <small>negócio + features</small></div>
+              </div>
+            </div>
+            <div class="arch-stage">
+              <div class="arch-number">CONSUMO</div>
+              <h4>Analytics + ML + Streamlit</h4>
+              <p>Visualização, previsão e apoio à decisão.</p>
             </div>
           </div>
         </div>
