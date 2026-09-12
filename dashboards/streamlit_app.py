@@ -11,6 +11,7 @@ from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
+import plotly.graph_objects as go
 
 st.set_page_config(
     page_title="Previsão de Bandeiras | Energy Intelligence",
@@ -663,6 +664,19 @@ st.markdown(
         z-index:3;
     }
 
+    .arch-icon {
+        width:42px;
+        height:42px;
+        margin:2px 0 12px 0;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        border:1px solid #1b6da4;
+        border-radius:12px;
+        background:#09253a;
+        font-size:22px;
+    }
+
     .arch-number {
         color:#087cff;
         font-size:11px;
@@ -957,9 +971,183 @@ def predict_scenario(sim_base, serie_band, reference_month, scenario, horizon):
         train["y"].values,
         train["alvo_mes"].values,
     )
-    x_scenario = pd.DataFrame([scenario])[SIM_FEATURES]
+    scenario_h = dict(scenario)
+    target_month = reference_month + horizon
+    for name, (ini, fim) in SIM_MARCOS.items():
+        scenario_h[name] = int(
+            marca_regime(pd.PeriodIndex([target_month]), ini, fim)[0]
+        )
+
+    x_scenario = pd.DataFrame([scenario_h])[SIM_FEATURES]
     probability = float(model.predict_proba(x_scenario)[0][1])
     return probability, reference_month + horizon, len(train)
+
+
+def forecast_current(sim_base, serie_band, reference_month):
+    """Calculate M+1/M+2/M+3 using the same recipe exposed by the simulator."""
+    ref_rows = sim_base[sim_base["origem"] == reference_month].copy()
+    if ref_rows.empty:
+        raise ValueError(f"Não há dados de referência para {reference_month.strftime('%m/%Y')}.")
+
+    ref_row = ref_rows.sort_values("competencia").iloc[0]
+    scenario = {
+        "mes_clima": int(reference_month.month),
+        "chuva_media": float(ref_row["chuva_media"]) if pd.notna(ref_row["chuva_media"]) else np.nan,
+        "chuva_pct_normal_ok": float(ref_row["chuva_pct_normal_ok"]) if pd.notna(ref_row["chuva_pct_normal_ok"]) else np.nan,
+        "temperatura": float(ref_row["temperatura"]) if pd.notna(ref_row["temperatura"]) else np.nan,
+        "umidade": float(ref_row["umidade"]) if pd.notna(ref_row["umidade"]) else np.nan,
+        "bandeira_origem": float(ref_row["bandeira_origem"]),
+        "ear_pct": float(ref_row["ear_pct"]) if pd.notna(ref_row["ear_pct"]) else np.nan,
+    }
+
+    results = []
+    for h in (1, 2, 3):
+        p, target, n_train = predict_scenario(
+            sim_base, serie_band, reference_month, scenario, h
+        )
+        results.append({"h": h, "target": target, "probability": p, "n_train": n_train})
+    return results
+
+
+def risk_label(probability):
+    if probability is None or pd.isna(probability):
+        return "INDISPONÍVEL", "#31516a"
+    if probability >= 0.70:
+        return "ALTO RISCO", "#ff3b4e"
+    if probability >= 0.50:
+        return "ATENÇÃO", "#ffc400"
+    return "RISCO MODERADO", "#087cff"
+
+
+def forecast_cards_html(forecasts, reference_month):
+    cards = []
+    for item in forecasts:
+        p = item.get("probability")
+        target = item.get("target")
+        n_train = item.get("n_train")
+        label, color = risk_label(p)
+        value = "—" if p is None else f"{p:.1%}"
+        target_txt = target.strftime("%m/%Y") if hasattr(target, "strftime") else "—"
+        note = f"{label} · referência {reference_month.strftime('%m/%Y')}" if p is not None else "Previsão indisponível"
+        train_note = f"{n_train} observações de treino" if n_train is not None else "Base de treino indisponível"
+        cards.append(
+            f"""
+            <div class="risk-card" style="--card-color:{color};">
+              <div class="risk-inner">
+                <div class="risk-label">M+{item['h']} · {target_txt}</div>
+                <div class="risk-value">{value}</div>
+                <div class="risk-note">{note}<br>{train_note}</div>
+              </div>
+              <div class="risk-icon">⚡</div>
+            </div>
+            """
+        )
+    return '<div class="cards">' + "".join(cards) + "</div>"
+
+
+def flag_history_chart(df):
+    """History chart whose line changes color as the official tariff flag changes."""
+    hist = month_index(df)
+    hist["NivelBandeira"] = pd.to_numeric(hist["NivelBandeira"], errors="coerce")
+    hist = hist.dropna(subset=["_mes_dashboard", "NivelBandeira"]).sort_values("_mes_dashboard")
+    if hist.empty:
+        st.warning("Histórico sem dados válidos para visualização.")
+        return
+
+    colors = {0: "#00b86b", 1: "#ffc400", 2: "#ff3b4e", 3: "#ff3b4e", 4: "#ff7a00"}
+    names = {0: "Verde", 1: "Amarela", 2: "Vermelha P1", 3: "Vermelha P2", 4: "Escassez Hídrica"}
+
+    fig = go.Figure()
+    x = hist["_mes_dashboard"].tolist()
+    y = hist["NivelBandeira"].astype(float).tolist()
+
+    for i in range(len(x) - 1):
+        level = int(round(y[i]))
+        fig.add_trace(go.Scatter(
+            x=[x[i], x[i + 1]], y=[y[i], y[i + 1]],
+            mode="lines", line=dict(color=colors.get(level, "#087cff"), width=3),
+            hoverinfo="skip", showlegend=False,
+        ))
+
+    for level in sorted(colors):
+        mask = hist["NivelBandeira"].round().astype(int) == level
+        if mask.any():
+            fig.add_trace(go.Scatter(
+                x=hist.loc[mask, "_mes_dashboard"],
+                y=hist.loc[mask, "NivelBandeira"],
+                mode="markers",
+                name=names[level],
+                marker=dict(color=colors[level], size=7, line=dict(width=1, color="#061522")),
+                hovertemplate="<b>%{x|%m/%Y}</b><br>" + names[level] + "<extra></extra>",
+            ))
+
+    fig.update_layout(
+        height=390,
+        margin=dict(l=10, r=10, t=25, b=10),
+        paper_bgcolor="#07131f",
+        plot_bgcolor="#07131f",
+        font=dict(color="#cfe0eb"),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+        xaxis=dict(showgrid=False, color="#8fa8bb"),
+        yaxis=dict(
+            title="Nível da bandeira",
+            tickmode="array",
+            tickvals=[0, 1, 2, 3, 4],
+            ticktext=["Verde", "Amarela", "Vermelha P1", "Vermelha P2", "Escassez"],
+            gridcolor="#183042",
+            zeroline=False,
+            color="#8fa8bb",
+            range=[-0.2, 4.35],
+        ),
+        hovermode="x unified",
+    )
+    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+
+
+def render_architecture():
+    """Architecture visual with symbols, using native Streamlit columns to avoid literal HTML."""
+    st.markdown('<div class="arch-wrap"><div class="arch-flow">', unsafe_allow_html=True)
+
+    cols = st.columns([1.0, 1.0, 1.55, 1.0])
+    cards = [
+        (cols[0], "01", "☁️", "FONTES", "Dados meteorológicos, operacionais e regulatórios.",
+         ["INMET / CPTEC", "ONS / CCEE", "ANEEL"]),
+        (cols[1], "02", "⚙️", "ORQUESTRAÇÃO & INGESTÃO", "Coleta, padronização e atualização dos dados.",
+         ["Python", "Automação", "GitHub / Jobs"]),
+        (cols[2], "03", "🗄️", "DATA LAKE", "Camadas que preservam, tratam e refinam os dados.",
+         ["STAGE · Landing", "RAW · Estrutura", "TRUSTED · Qualidade + Star Schema", "REFINED · Negócio + Features"]),
+        (cols[3], "04", "📊", "CONSUMO", "Analytics, modelo preditivo e apoio à decisão.",
+         ["🧠 ML / IA", "📈 Analytics", "🖥️ Streamlit"]),
+    ]
+
+    for col, number, icon, title, desc, pills in cards:
+        with col:
+            pill_html = "".join(f'<span class="arch-pill">{p}</span>' for p in pills)
+            st.markdown(
+                f"""
+                <div class="arch-stage">
+                  <div class="arch-number">{number}</div>
+                  <div class="arch-icon">{icon}</div>
+                  <h4>{title}</h4>
+                  <p>{desc}</p>
+                  <div>{pill_html}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+    st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown(
+        """
+        <div class="arch-bottom">
+          <div class="arch-note"><strong>🔧 Feature Engineering</strong>Clima + EAR + histórico de bandeira + transformações temporais.</div>
+          <div class="arch-note"><strong>🧠 Modelo</strong>Regressão logística com balanceamento, padronização e backtest.</div>
+          <div class="arch-note"><strong>🎯 Produto</strong>Probabilidade estimada de bandeira vermelha para M+1, M+2 e M+3.</div>
+        </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 GITHUB_PROJECT_URL = "https://github.com/FabioFumioWada/MACK_MBA_Eng_Dados_TurmaG_Energia_Solar"
@@ -1254,11 +1442,23 @@ if db_ok and not df_bandeiras.empty:
         latest["_mes_dashboard"].strftime("%m/%Y")
         if pd.notna(latest.get("_mes_dashboard")) else "—"
     )
-    model_status = "Saída oficial do modelo ainda não persistida em tabela"
+    model_status = "Previsão calculada pelo mesmo pipeline do modelo 07"
 else:
     current_flag = "—"
     current_date = "Databricks indisponível"
     model_status = "Conexão não disponível"
+
+current_forecasts = []
+forecast_reference = None
+if db_ok and not df_sim_clima.empty and not df_sim_band.empty and not df_sim_ear.empty:
+    try:
+        _sim_base, _sim_series = montar_base_simulador(df_sim_clima, df_sim_band, df_sim_ear)
+        _refs = sorted(_sim_base["origem"].dropna().unique())
+        if _refs:
+            forecast_reference = pd.Period("2026-07", "M") if pd.Period("2026-07", "M") in _refs else _refs[-1]
+            current_forecasts = forecast_current(_sim_base, _sim_series, forecast_reference)
+    except Exception:
+        current_forecasts = []
 
 
 tabs = st.tabs(
@@ -1342,6 +1542,8 @@ with tabs[0]:
     if not db_ok:
         st.error("Não foi possível conectar ao Databricks SQL Warehouse.")
         st.caption("Verifique os três Secrets do aplicativo. Nenhum token é exibido pelo dashboard.")
+    elif current_forecasts and forecast_reference is not None:
+        st.markdown(forecast_cards_html(current_forecasts, forecast_reference), unsafe_allow_html=True)
     else:
         st.markdown(html_cards(current_flag, current_date, model_status), unsafe_allow_html=True)
 
@@ -1367,66 +1569,10 @@ with tabs[0]:
             <p>A arquitetura conecta fontes, ingestão, camadas de dados, modelagem e consumo.</p>
           </div>
         </div>
-
-        <div class="arch-wrap">
-          <div class="arch-flow">
-            <div class="arch-stage">
-              <div class="arch-number">01 · FONTES</div>
-              <h4>Dados de entrada</h4>
-              <p>Fontes meteorológicas, operacionais e regulatórias alimentam o fluxo.</p>
-              <span class="arch-pill">INMET / CPTEC</span>
-              <span class="arch-pill">ONS / CCEE</span>
-              <span class="arch-pill">ANEEL</span>
-            </div>
-
-            <div class="arch-stage">
-              <div class="arch-number">02 · INGESTÃO</div>
-              <h4>Orquestração</h4>
-              <p>Scripts Python e automações conduzem a entrada e atualização dos dados.</p>
-              <span class="arch-pill">Python</span>
-              <span class="arch-pill">GitHub</span>
-              <span class="arch-pill">Jobs</span>
-            </div>
-
-            <div class="arch-stage">
-              <div class="arch-number">03 · DATA LAKE</div>
-              <h4>Camadas de dados</h4>
-              <div class="arch-layers">
-                <div class="arch-layer">STAGE <small>entrada / landing</small></div>
-                <div class="arch-layer">RAW <small>dados estruturados e validação</small></div>
-                <div class="arch-layer">TRUSTED <small>qualidade, fatos e dimensões</small></div>
-                <div class="arch-layer">REFINED <small>agregações de negócio e features</small></div>
-              </div>
-            </div>
-
-            <div class="arch-stage">
-              <div class="arch-number">04 · CONSUMO</div>
-              <h4>Decisão</h4>
-              <p>As tabelas refinadas alimentam visualização, análise e o produto preditivo.</p>
-              <span class="arch-pill">Streamlit</span>
-              <span class="arch-pill">ML / IA</span>
-              <span class="arch-pill">Relatórios</span>
-            </div>
-          </div>
-
-          <div class="arch-bottom">
-            <div class="arch-note">
-              <strong>Feature Engineering</strong>
-              Clima + EAR + histórico de bandeira + transformações temporais.
-            </div>
-            <div class="arch-note">
-              <strong>Modelo</strong>
-              Regressão logística com balanceamento, padronização e avaliação por backtest.
-            </div>
-            <div class="arch-note">
-              <strong>Saída</strong>
-              Probabilidade estimada de bandeira vermelha para M+1, M+2 e M+3.
-            </div>
-          </div>
-        </div>
         """,
         unsafe_allow_html=True,
     )
+    render_architecture()
 
     st.markdown(
         """
@@ -1604,62 +1750,14 @@ with tabs[1]:
         unsafe_allow_html=True,
     )
 
-    st.markdown(
-        """
-        <div class="cards">
-          <div class="risk-card" style="--card-color:#ff3b4e;">
-            <div class="risk-inner">
-              <div class="risk-label">M+1 · Próximo mês</div>
-              <div class="risk-value">—</div>
-              <div class="risk-note">Aguardando tabela de saída do modelo</div>
-            </div>
-            <div class="risk-icon">▥</div>
-          </div>
-          <div class="risk-card" style="--card-color:#ffc400;">
-            <div class="risk-inner">
-              <div class="risk-label">M+2 · Dois meses</div>
-              <div class="risk-value">—</div>
-              <div class="risk-note">Aguardando tabela de saída do modelo</div>
-            </div>
-            <div class="risk-icon">▥</div>
-          </div>
-          <div class="risk-card" style="--card-color:#087cff;">
-            <div class="risk-inner">
-              <div class="risk-label">M+3 · Três meses</div>
-              <div class="risk-value">—</div>
-              <div class="risk-note">Aguardando tabela de saída do modelo</div>
-            </div>
-            <div class="risk-icon">▥</div>
-          </div>
-          <div class="risk-card" style="--card-color:#087cff;">
-            <div class="risk-inner">
-              <div class="risk-label">Classe-alvo</div>
-              <div class="risk-value" style="font-size:24px;">VERMELHA</div>
-              <div class="risk-note">Classificação binária</div>
-            </div>
-            <div class="risk-icon">●</div>
-          </div>
-        </div>
-
-        <div class="question" style="margin-top:18px;">
-          <div class="question-bar"></div>
-          <div>
-            <div class="eyebrow">Interpretação</div>
-            <div class="question-text" style="font-size:14px;">
-              A probabilidade exibida nesta área deverá vir diretamente da saída
-              persistida do modelo treinado no Databricks.
-            </div>
-          </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    if db_ok:
-        st.info(
-            "Conexão com o Databricks está funcionando. A próxima integração é persistir "
-            "o JSON final do notebook 07 em uma tabela de resultados para alimentar estes três cartões."
+    if current_forecasts and forecast_reference is not None:
+        st.markdown(forecast_cards_html(current_forecasts, forecast_reference), unsafe_allow_html=True)
+        st.success(
+            f"Previsão calculada com dados reais do Databricks, usando referência de {forecast_reference.strftime('%m/%Y')} "
+            "e a mesma lógica do modelo 07."
         )
+    elif db_ok:
+        st.warning("A previsão não pôde ser calculada com as fontes atuais do modelo.")
     else:
         st.error("Sem conexão com o Databricks.")
 
@@ -1804,9 +1902,9 @@ with tabs[1]:
                             )
 
                 st.info(
-                    "Demonstração interativa: os valores inseridos manualmente "
-                    "alteram as entradas do mesmo algoritmo de regressão logística "
-                    "usado no notebook 07. Não substitui a previsão oficial do projeto."
+                    "Simulador de sensibilidade: os valores inseridos alteram as entradas "
+                    "do mesmo algoritmo e da mesma engenharia de atributos do notebook 07. "
+                    "A previsão executiva acima usa os dados reais disponíveis no Databricks."
                 )
         except Exception as exc:
             st.error(
@@ -1919,14 +2017,12 @@ with tabs[3]:
 
         st.markdown("### Evolução das bandeiras")
         st.caption(
-            "O histórico preserva os níveis oficiais. Quando MesCompetencia está vazio, "
-            "o dashboard usa AnoMes como referência temporal."
+            "A linha muda de cor conforme a bandeira oficial muda: verde, amarela, "
+            "vermelha ou escassez hídrica. Quando MesCompetencia está vazio, o dashboard "
+            "usa AnoMes como referência temporal."
         )
         if not hist.empty:
-            st.line_chart(
-                hist.set_index("_mes_dashboard")["NivelBandeira"],
-                use_container_width=True,
-            )
+            flag_history_chart(hist)
 
         dist = hist.copy()
         dist["Bandeira"] = dist["NivelBandeira"].map(flag_name)
