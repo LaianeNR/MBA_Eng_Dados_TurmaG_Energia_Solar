@@ -119,34 +119,6 @@ st.markdown(
         letter-spacing:.2px;
     }
 
-    .brand-qr {
-        display:flex;
-        align-items:center;
-        gap:12px;
-        padding-left:18px;
-        margin-left:2px;
-        border-left:1px solid var(--line-soft);
-    }
-
-    .brand-qr img {
-        width:104px;
-        height:104px;
-        display:block;
-        background:#ffffff;
-        padding:5px;
-        border-radius:7px;
-    }
-
-    .brand-qr-label {
-        color:#b5c7d5;
-        font-size:9px;
-        line-height:1.35;
-        text-transform:uppercase;
-        letter-spacing:.7px;
-        white-space:nowrap;
-        align-self:center;
-    }
-
     .brand-meta {
         display:flex;
         align-items:center;
@@ -170,6 +142,35 @@ st.markdown(
     }
 
     /* Hero */
+    .hero-qr {
+        position:absolute;
+        right:62px;
+        bottom:28px;
+        display:flex;
+        flex-direction:column;
+        align-items:center;
+        gap:7px;
+        z-index:3;
+    }
+
+    .hero-qr img {
+        width:112px;
+        height:112px;
+        display:block;
+        background:#ffffff;
+        padding:5px;
+        border-radius:7px;
+    }
+
+    .hero-qr-label {
+        color:#b5c7d5;
+        font-size:8px;
+        line-height:1.25;
+        text-transform:uppercase;
+        letter-spacing:1px;
+        text-align:center;
+    }
+
     .hero {
         position:relative;
         overflow:hidden;
@@ -1236,15 +1237,6 @@ def render_kpi_card(label, value, note, accent="#087cff"):
 # ------------------------------------------------------------
 # Header
 # ------------------------------------------------------------
-qr_uri = get_qr_data_uri()
-qr_html = (
-    f'<div class="brand-qr">'
-    f'<img src="{qr_uri}" alt="QR Code do projeto">'
-    f'<div class="brand-qr-label">Acesse<br>o projeto</div>'
-    f'</div>'
-    if qr_uri else ""
-)
-
 st.markdown(
     f"""
     <div class="brandbar">
@@ -1265,7 +1257,6 @@ st.markdown(
           Setor Elétrico Brasileiro<br>
           Bandeiras Tarifárias
         </div>
-        {qr_html}
       </div>
     </div>
     """,
@@ -1401,6 +1392,8 @@ def flag_history_chart(df):
 # TAB 1 — CONTEXTO
 # ------------------------------------------------------------
 with tabs[0]:
+    qr_uri = get_qr_data_uri()
+
     st.markdown(
         """
         <div class="hero">
@@ -1416,7 +1409,11 @@ with tabs[0]:
             <div class="benefit"><span class="benefit-icon">◆</span>Leitura integrada<br>do sistema elétrico</div>
           </div>
           <div class="hero-side">ENERGIA<br>DADOS<br>RISCO<br>DECISÃO</div>
-        </div>
+                  <div class="hero-qr">
+            <img src="{qr_uri}" alt="QR Code do projeto">
+            <div class="hero-qr-label">Acesse<br>o projeto</div>
+          </div>
+</div>
 
         <div class="question">
           <div class="question-bar"></div>
