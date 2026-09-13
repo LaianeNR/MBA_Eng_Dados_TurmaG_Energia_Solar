@@ -1,5 +1,6 @@
 
 import io
+import base64
 import math
 import os
 from pathlib import Path
@@ -116,6 +117,33 @@ st.markdown(
         color:#87a2b6;
         font-size:10px;
         letter-spacing:.2px;
+    }
+
+    .brand-qr {
+        display:flex;
+        align-items:center;
+        gap:10px;
+        padding-left:18px;
+        margin-left:2px;
+        border-left:1px solid var(--line-soft);
+    }
+
+    .brand-qr img {
+        width:72px;
+        height:72px;
+        display:block;
+        background:#ffffff;
+        padding:4px;
+        border-radius:6px;
+    }
+
+    .brand-qr-label {
+        color:#b5c7d5;
+        font-size:9px;
+        line-height:1.35;
+        text-transform:uppercase;
+        letter-spacing:.7px;
+        white-space:nowrap;
     }
 
     .brand-meta {
@@ -870,6 +898,23 @@ def predict_scenario(sim_base, serie_band, reference_month, scenario, horizon):
 GITHUB_PROJECT_URL = "https://github.com/FabioFumioWada/MACK_MBA_Eng_Dados_TurmaG_Energia_Solar"
 
 
+def get_qr_data_uri():
+    """Generate the project QR as an embeddable PNG data URI."""
+    try:
+        import qrcode
+
+        qr = qrcode.QRCode(version=None, box_size=7, border=2)
+        qr.add_data(GITHUB_PROJECT_URL)
+        qr.make(fit=True)
+        img = qr.make_image()
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        encoded = base64.b64encode(buf.getvalue()).decode("ascii")
+        return f"data:image/png;base64,{encoded}"
+    except Exception:
+        return None
+
+
 def render_qr():
     """QR Code for the project GitHub link requested for the presentation."""
     url = GITHUB_PROJECT_URL
@@ -1190,8 +1235,17 @@ def render_kpi_card(label, value, note, accent="#087cff"):
 # ------------------------------------------------------------
 # Header
 # ------------------------------------------------------------
+qr_uri = get_qr_data_uri()
+qr_html = (
+    f'<div class="brand-qr">'
+    f'<img src="{qr_uri}" alt="QR Code do projeto">'
+    f'<div class="brand-qr-label">Acesse<br>o projeto</div>'
+    f'</div>'
+    if qr_uri else ""
+)
+
 st.markdown(
-    """
+    f"""
     <div class="brandbar">
       <div class="brand-left">
         <div class="brand-mark">⌁</div>
@@ -1210,6 +1264,7 @@ st.markdown(
           Setor Elétrico Brasileiro<br>
           Bandeiras Tarifárias
         </div>
+        {qr_html}
       </div>
     </div>
     """,
@@ -1434,22 +1489,6 @@ with tabs[0]:
         """,
         unsafe_allow_html=True,
     )
-
-    st.markdown(
-        """
-        <div class="section-head">
-          <div class="section-title"><h2>Acesse o projeto</h2><p>Repositório e artefatos do trabalho.</p></div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    with st.container(border=True):
-        qr1, qr2 = st.columns([1, 2])
-        with qr1:
-            render_qr()
-        with qr2:
-            st.markdown("### Repositório do projeto")
-            st.write("O QR Code abre o repositório utilizado pelo grupo. A aplicação é a camada de consumo; os dados e a modelagem permanecem no ambiente de dados.")
 
 # ------------------------------------------------------------
 # TAB 2 — HISTÓRICO
