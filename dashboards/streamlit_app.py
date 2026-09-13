@@ -144,11 +144,11 @@ st.markdown(
     /* Hero */
     .hero-right-cluster {
         position:absolute;
-        right:42px;
-        bottom:30px;
+        right:34px;
+        bottom:28px;
         display:flex;
         align-items:center;
-        gap:18px;
+        gap:24px;
         z-index:3;
     }
 
@@ -160,8 +160,8 @@ st.markdown(
     }
 
     .hero-qr img {
-        width:112px;
-        height:112px;
+        width:148px;
+        height:148px;
         display:block;
         background:#ffffff;
         padding:5px;
@@ -180,7 +180,7 @@ st.markdown(
     .hero {
         position:relative;
         overflow:hidden;
-        min-height:320px;
+        min-height:285px;
         margin-top:26px;
         padding:42px 38px 34px 38px;
         border:1px solid #145077;
@@ -289,13 +289,13 @@ st.markdown(
 
 
     .hero-side {
-        width:110px;
-        border-left:2px solid #0d8dff;
-        padding-left:16px;
-        color:#9eb4c4;
-        font-size:11px;
-        line-height:1.75;
-        letter-spacing:3px;
+        width:150px;
+        border-left:3px solid #0d8dff;
+        padding-left:22px;
+        color:#b5c7d5;
+        font-size:15px;
+        line-height:1.85;
+        letter-spacing:4px;
         text-transform:uppercase;
     }
 
@@ -1417,8 +1417,13 @@ with tabs[0]:
             </div>
             <div class="hero-side">ENERGIA<br>DADOS<br>RISCO<br>DECISÃO</div>
           </div>
-</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
+    st.markdown(
+        """
         <div class="question">
           <div class="question-bar"></div>
           <div>
