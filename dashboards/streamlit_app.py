@@ -241,6 +241,15 @@ st.markdown(
         line-height: 1;
         transform: rotate(0deg);
     }
+    .benefit-icon.lightning-shape {
+        width: 14px;
+        height: 22px;
+        display: inline-block;
+        flex: 0 0 14px;
+        background: #087cff;
+        clip-path: polygon(58% 0%, 100% 0%, 67% 40%, 94% 40%, 35% 100%, 47% 54%, 18% 54%);
+        transform: none;
+    }
 
 
     .hero-side {
@@ -1346,7 +1355,7 @@ with tabs[0]:
             antecipada de risco para os próximos meses.
           </div>
           <div class="hero-benefits">
-            <div class="benefit"><span class="benefit-icon lightning">ϟ</span>Antecipação<br>de risco</div>
+            <div class="benefit"><span class="benefit-icon lightning-shape" aria-hidden="true"></span>Antecipação<br>de risco</div>
             <div class="benefit"><span class="benefit-icon">▥</span>Decisões<br>mais informadas</div>
             <div class="benefit"><span class="benefit-icon">◆</span>Leitura integrada<br>do sistema elétrico</div>
           </div>
@@ -1389,15 +1398,20 @@ with tabs[0]:
           </div>
           <div class="update">Referência do modelo<br><strong>{period_label(reference_month)}</strong></div>
         </div>
-        <div class="cards">
-          {render_kpi_card('Última bandeira observada', current_flag, f'Competência {current_date}', '#00b86b')}
-          {render_kpi_card('Horizonte 1', period_label(reference_month + 1), 'Primeiro mês à frente', '#ff3b4e')}
-          {render_kpi_card('Horizonte 2', period_label(reference_month + 2), 'Segundo mês à frente', '#ffc400')}
-          {render_kpi_card('Horizonte 3', period_label(reference_month + 3), 'Terceiro mês à frente', '#087cff')}
-        </div>
         """,
         unsafe_allow_html=True,
     )
+
+    kpi_cols = st.columns(4, gap="small")
+    kpi_data = [
+        ("Última bandeira observada", current_flag, f"Competência {current_date}", "#00b86b"),
+        ("Horizonte 1", period_label(reference_month + 1), "Primeiro mês à frente", "#ff3b4e"),
+        ("Horizonte 2", period_label(reference_month + 2), "Segundo mês à frente", "#ffc400"),
+        ("Horizonte 3", period_label(reference_month + 3), "Terceiro mês à frente", "#087cff"),
+    ]
+    for col, (label, value, note, accent) in zip(kpi_cols, kpi_data):
+        with col:
+            st.markdown(render_kpi_card(label, value, note, accent), unsafe_allow_html=True)
 
     st.markdown(
         """
