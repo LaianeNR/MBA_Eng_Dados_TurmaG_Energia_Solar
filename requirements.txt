@@ -1,7 +1,7 @@
 streamlit
 pandas
-numpy
-scikit-learn
 databricks-sql-connector
-plotly
+scikit-learn
+numpy
 qrcode[pil]
+plotly
