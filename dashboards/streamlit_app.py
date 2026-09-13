@@ -712,8 +712,8 @@ SIM_MARCOS = {
     "intervencao_escassez": ("2021-09", "2022-04"),
 }
 SIM_FEATURES = [
-    "mes_clima", "chuva_media", "chuva_pct_normal_ok", "temperatura",
-    "umidade", "bandeira_origem", "ear_pct", *SIM_MARCOS.keys()
+    "mes_clima", "chuva_acum", "chuva_media", "chuva_pct_normal_ok",
+    "temperatura", "umidade", "bandeira_origem", "ear_pct", *SIM_MARCOS.keys()
 ]
 
 
@@ -1068,32 +1068,6 @@ def closing_section():
 # Header
 # ------------------------------------------------------------
 
-st.markdown(
-    """
-    <div class="brandbar">
-      <div class="brand-left">
-        <div class="brand-mark">⌁</div>
-        <div>
-          <div class="brand-name">ENERGY INTELLIGENCE</div>
-          <div class="brand-sub">Dados hoje. Decisões melhores amanhã.</div>
-        </div>
-      </div>
-
-      <div class="brand-meta">
-        <div class="brand-meta-item">
-          <span class="brand-meta-dot">●</span>
-          MACKENZIE MBA<br>
-          Engenharia de Dados
-        </div>
-        <div class="brand-meta-item">
-          Setor Elétrico Brasileiro<br>
-          Bandeiras Tarifárias
-        </div>
-      </div>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
 
 # ------------------------------------------------------------
 # Load Databricks data
@@ -1167,6 +1141,23 @@ def month_label_pt(p):
         return "—"
 
 
+def month_index(df, primary="MesCompetencia", fallback="AnoMes"):
+    """Usa MesCompetencia e, quando vier nulo, cai para AnoMes."""
+    out = df.copy()
+    primary_dt = (
+        pd.to_datetime(out[primary].astype("string"), errors="coerce")
+        if primary in out.columns
+        else pd.Series(pd.NaT, index=out.index)
+    )
+    fallback_dt = (
+        pd.to_datetime(out[fallback].astype("string"), errors="coerce")
+        if fallback in out.columns
+        else pd.Series(pd.NaT, index=out.index)
+    )
+    out["_mes_dashboard"] = primary_dt.fillna(fallback_dt)
+    return out
+
+
 def get_reference_row(sim_base, ref):
     rows = sim_base[sim_base["origem"] == ref].sort_values("competencia")
     if rows.empty:
@@ -1179,6 +1170,7 @@ def calculate_real_forecast(sim_base, sim_series, ref):
     r = get_reference_row(sim_base, ref)
     scenario = {
         "mes_clima": int(ref.month),
+        "chuva_acum": float(r["chuva_acum"]) if pd.notna(r["chuva_acum"]) else np.nan,
         "chuva_media": float(r["chuva_media"]) if pd.notna(r["chuva_media"]) else np.nan,
         "chuva_pct_normal_ok": float(r["chuva_pct_normal_ok"]) if pd.notna(r["chuva_pct_normal_ok"]) else np.nan,
         "temperatura": float(r["temperatura"]) if pd.notna(r["temperatura"]) else np.nan,
@@ -1276,10 +1268,10 @@ except Exception as exc:
     db_error = str(exc)
 
 if db_ok and not df_bandeiras.empty:
-    df_bandeiras = safe_date(df_bandeiras, "MesCompetencia")
-    latest = df_bandeiras.sort_values("MesCompetencia").iloc[-1]
+    df_bandeiras = month_index(df_bandeiras)
+    latest = df_bandeiras.dropna(subset=["_mes_dashboard"]).sort_values("_mes_dashboard").iloc[-1]
     current_flag = flag_name(latest.get("NivelBandeira"))
-    current_date = period_label(latest.get("MesCompetencia"))
+    current_date = period_label(latest.get("_mes_dashboard"))
 else:
     current_flag = "—"
     current_date = "—"
@@ -1435,14 +1427,13 @@ with tabs[1]:
         unsafe_allow_html=True,
     )
     if db_ok and not df_bandeiras.empty:
-        hist = df_bandeiras.copy()
-        hist["MesCompetencia"] = pd.to_datetime(hist["MesCompetencia"], errors="coerce")
+        hist = month_index(df_bandeiras)
         hist["NivelBandeira"] = pd.to_numeric(hist["NivelBandeira"], errors="coerce")
-        hist = hist.dropna(subset=["MesCompetencia", "NivelBandeira"])
+        hist = hist.dropna(subset=["_mes_dashboard", "NivelBandeira"]).sort_values("_mes_dashboard")
 
         st.markdown("### Evolução das bandeiras")
-        st.caption("A série preserva os cinco níveis oficiais observados no histórico.")
-        st.line_chart(hist.set_index("MesCompetencia")["NivelBandeira"], use_container_width=True)
+        st.caption("A série preserva os níveis oficiais observados no histórico.")
+        st.line_chart(hist.set_index("_mes_dashboard")["NivelBandeira"], use_container_width=True)
 
         dist = hist.copy()
         dist["Bandeira"] = dist["NivelBandeira"].map(flag_name)
@@ -1458,13 +1449,14 @@ with tabs[1]:
         st.markdown("### Indicadores do sistema elétrico")
         cols = [c for c in ["EarPercentualNacional", "EnaPercentualMltNacional", "CmoMedioNacional", "CargaTotalNacional"] if c in hist.columns]
         if cols:
-            numeric = hist[["MesCompetencia"] + cols].copy()
+            numeric = hist[["_mes_dashboard"] + cols].copy()
             for c in cols:
                 numeric[c] = pd.to_numeric(numeric[c], errors="coerce")
-            st.line_chart(numeric.dropna(subset=["MesCompetencia"]).set_index("MesCompetencia")[cols], use_container_width=True)
+            st.line_chart(numeric.dropna(subset=["_mes_dashboard"]).set_index("_mes_dashboard")[cols], use_container_width=True)
 
         st.markdown("### Últimos registros observados")
-        st.dataframe(df_bandeiras.tail(12), use_container_width=True, hide_index=True)
+        latest_view = df_bandeiras.drop(columns=["_mes_dashboard"], errors="ignore").tail(12)
+        st.dataframe(latest_view, use_container_width=True, hide_index=True)
     else:
         st.warning("Histórico indisponível.")
 
@@ -1573,7 +1565,7 @@ with tabs[3]:
 
     if db_ok and not df_training.empty:
         st.markdown("### Base de treinamento")
-        st.caption(f"{len(df_training):,} observações disponíveis na tabela refined.modelo_treino_m1.")
+        st.caption(f"{len(df_training):,} observações disponíveis na camada refined para apoio à leitura da modelagem.")
         st.dataframe(df_training.tail(12), use_container_width=True, hide_index=True)
 
     st.markdown("### O que a avaliação precisa responder")
