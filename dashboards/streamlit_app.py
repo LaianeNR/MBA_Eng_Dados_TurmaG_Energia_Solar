@@ -235,6 +235,13 @@ st.markdown(
         font-size:16px;
         flex:0 0 auto;
     }
+    .benefit-icon.lightning {
+        font-family: "Segoe UI Symbol", "Arial Unicode MS", sans-serif;
+        font-size: 24px;
+        line-height: 1;
+        transform: rotate(0deg);
+    }
+
 
     .hero-side {
         position:absolute;
@@ -1339,7 +1346,7 @@ with tabs[0]:
             antecipada de risco para os próximos meses.
           </div>
           <div class="hero-benefits">
-            <div class="benefit"><span class="benefit-icon">⚡</span>Antecipação<br>de risco</div>
+            <div class="benefit"><span class="benefit-icon lightning">ϟ</span>Antecipação<br>de risco</div>
             <div class="benefit"><span class="benefit-icon">▥</span>Decisões<br>mais informadas</div>
             <div class="benefit"><span class="benefit-icon">◆</span>Leitura integrada<br>do sistema elétrico</div>
           </div>
@@ -1635,6 +1642,7 @@ with tabs[4]:
             with c1:
                 temperatura = st.number_input("Temperatura média (°C)", value=float(ref_row["temperatura"]) if pd.notna(ref_row["temperatura"]) else 25.0, step=0.5)
                 chuva_media = st.number_input("Chuva média (mm)", value=float(ref_row["chuva_media"]) if pd.notna(ref_row["chuva_media"]) else 100.0, step=5.0)
+                chuva_acum = st.number_input("Chuva acumulada (mm)", value=float(ref_row["chuva_acum"]) if pd.notna(ref_row["chuva_acum"]) else 100.0, step=5.0)
             with c2:
                 chuva_pct = st.number_input("Chuva (% da normal)", value=float(ref_row["chuva_pct_normal_ok"]) if pd.notna(ref_row["chuva_pct_normal_ok"]) else 100.0, step=5.0)
                 umidade = st.number_input("Umidade média (%)", value=float(ref_row["umidade"]) if pd.notna(ref_row["umidade"]) else 70.0, step=1.0)
@@ -1646,6 +1654,7 @@ with tabs[4]:
         if submitted:
             scenario = {
                 "mes_clima": int(reference_month.month),
+                "chuva_acum": chuva_acum,
                 "chuva_media": chuva_media,
                 "chuva_pct_normal_ok": chuva_pct,
                 "temperatura": temperatura,
