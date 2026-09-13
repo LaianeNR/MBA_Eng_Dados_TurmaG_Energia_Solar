@@ -122,19 +122,19 @@ st.markdown(
     .brand-qr {
         display:flex;
         align-items:center;
-        gap:10px;
+        gap:12px;
         padding-left:18px;
         margin-left:2px;
         border-left:1px solid var(--line-soft);
     }
 
     .brand-qr img {
-        width:72px;
-        height:72px;
+        width:104px;
+        height:104px;
         display:block;
         background:#ffffff;
-        padding:4px;
-        border-radius:6px;
+        padding:5px;
+        border-radius:7px;
     }
 
     .brand-qr-label {
@@ -144,6 +144,7 @@ st.markdown(
         text-transform:uppercase;
         letter-spacing:.7px;
         white-space:nowrap;
+        align-self:center;
     }
 
     .brand-meta {
