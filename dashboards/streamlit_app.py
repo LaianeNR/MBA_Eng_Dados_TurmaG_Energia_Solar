@@ -141,6 +141,37 @@ st.markdown(
         margin-right:7px;
     }
 
+    .timeline-list {
+        display:grid;
+        gap:10px;
+        margin-top:8px;
+    }
+
+    .timeline-item {
+        display:grid;
+        grid-template-columns:170px 1fr;
+        gap:18px;
+        align-items:start;
+        padding:14px 16px;
+        border:1px solid var(--line-soft);
+        border-radius:12px;
+        background:rgba(10,33,51,.72);
+    }
+
+    .timeline-item span {
+        color:#1595ff;
+        font-size:10px;
+        font-weight:800;
+        letter-spacing:1.6px;
+    }
+
+    .timeline-item p {
+        margin:0;
+        color:#c8d7e2;
+        font-size:13px;
+        line-height:1.6;
+    }
+
     /* Hero */
     .hero-right-cluster {
         position:absolute;
@@ -160,8 +191,8 @@ st.markdown(
     }
 
     .hero-qr img {
-        width:148px;
-        height:148px;
+        width:160px;
+        height:160px;
         display:block;
         background:#ffffff;
         padding:5px;
@@ -1324,6 +1355,7 @@ tabs = st.tabs([
     "04  Modelo",
     "05  Previsão",
     "06  Metodologia",
+    "07  Jornada do projeto",
 ])
 
 def flag_history_chart(df):
@@ -1774,3 +1806,98 @@ with tabs[5]:
 
     st.markdown(closing_section(), unsafe_allow_html=True)
 
+
+
+# ------------------------------------------------------------
+# TAB 7 — JORNADA DO PROJETO
+# ------------------------------------------------------------
+with tabs[6]:
+    st.markdown(
+        """
+        <div class="section-head">
+          <div class="section-title">
+            <h2>Jornada do projeto</h2>
+            <p>Como o problema evoluiu até chegar à solução preditiva apresentada aqui.</p>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown(
+        """
+        <div class="impact-grid">
+          <div class="impact-card">
+            <div class="impact-icon">01</div>
+            <h4>ESCOPO INICIAL</h4>
+            <p>O projeto começou com foco em geração distribuída e energia solar, explorando as bases disponíveis e a arquitetura de dados.</p>
+          </div>
+          <div class="impact-card">
+            <div class="impact-icon">02</div>
+            <h4>EDA E DADOS</h4>
+            <p>Foram estruturadas as camadas de dados e exploradas séries históricas de energia, clima, hidrologia e bandeiras tarifárias.</p>
+          </div>
+          <div class="impact-card">
+            <div class="impact-icon">03</div>
+            <h4>MUDANÇA DE PERGUNTA</h4>
+            <p>A investigação evoluiu para uma pergunta mais acionável: antecipar a probabilidade de bandeira vermelha nos meses seguintes.</p>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown(
+        """
+        <div class="impact-grid" style="margin-top:14px;">
+          <div class="impact-card">
+            <div class="impact-icon">04</div>
+            <h4>MODELOS</h4>
+            <p>Foram testadas abordagens de classificação e a regressão logística se consolidou como a solução final utilizada no notebook 07.</p>
+          </div>
+          <div class="impact-card">
+            <div class="impact-icon">05</div>
+            <h4>VALIDAÇÃO TEMPORAL</h4>
+            <p>O histórico é respeitado cronologicamente: cada previsão usa somente informações disponíveis antes do mês-alvo.</p>
+          </div>
+          <div class="impact-card">
+            <div class="impact-icon">06</div>
+            <h4>PRODUTO FINAL</h4>
+            <p>O resultado foi transformado em uma experiência executiva: histórico, sinais, modelo, previsão e simulador de cenários.</p>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown("### O que mudou ao longo do desenvolvimento")
+    st.markdown(
+        """
+        <div class="timeline-list">
+          <div class="timeline-item"><span>SPRINTS INICIAIS</span><p>Definição do problema, fontes de dados, arquitetura e primeiras explorações.</p></div>
+          <div class="timeline-item"><span>DADOS E CAMADAS</span><p>Consolidação das fontes na estrutura Raw → Trusted → Refined, com padronização e integração das séries.</p></div>
+          <div class="timeline-item"><span>MODELAGEM</span><p>Construção de modelos de classificação, testes de variáveis e validação histórica.</p></div>
+          <div class="timeline-item"><span>NOTEBOOK 07</span><p>Consolidação da receita de regressão logística para prever M+1, M+2 e M+3.</p></div>
+          <div class="timeline-item"><span>VERSÃO EXECUTIVA</span><p>Transformação do resultado técnico em uma narrativa orientada a risco, decisão e antecipação.</p></div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown("### O que não faz parte da previsão")
+    st.info(
+        "A arquitetura de dados é apresentada separadamente na apresentação do grupo. "
+        "Este dashboard concentra a história do problema, os sinais, a modelagem e a decisão preditiva."
+    )
+
+    st.markdown("### Ferramentas utilizadas")
+    st.markdown(
+        """
+        <div class="impact-grid">
+          <div class="impact-card"><div class="impact-icon">DB</div><h4>DATABRICKS</h4><p>Processamento, camadas de dados e execução da modelagem.</p></div>
+          <div class="impact-card"><div class="impact-icon">PY</div><h4>PYTHON</h4><p>Tratamento, engenharia de atributos, modelagem e aplicação do dashboard.</p></div>
+          <div class="impact-card"><div class="impact-icon">GH</div><h4>GITHUB</h4><p>Versionamento do projeto e colaboração da equipe.</p></div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
