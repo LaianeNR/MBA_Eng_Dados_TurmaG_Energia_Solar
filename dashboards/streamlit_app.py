@@ -142,15 +142,21 @@ st.markdown(
     }
 
     /* Hero */
-    .hero-qr {
+    .hero-right-cluster {
         position:absolute;
-        right:62px;
-        bottom:28px;
+        right:42px;
+        bottom:30px;
+        display:flex;
+        align-items:center;
+        gap:18px;
+        z-index:3;
+    }
+
+    .hero-qr {
         display:flex;
         flex-direction:column;
         align-items:center;
         gap:7px;
-        z-index:3;
     }
 
     .hero-qr img {
@@ -283,11 +289,7 @@ st.markdown(
 
 
     .hero-side {
-        position:absolute;
-        right:36px;
-        top:100px;
-        width:150px;
-        z-index:2;
+        width:110px;
         border-left:2px solid #0d8dff;
         padding-left:16px;
         color:#9eb4c4;
@@ -1395,7 +1397,7 @@ with tabs[0]:
     qr_uri = get_qr_data_uri()
 
     st.markdown(
-        """
+        f"""
         <div class="hero">
           <div class="hero-kicker">Inteligência preditiva para o setor elétrico</div>
           <h1 class="hero-title">PREVISÃO DE<br><span class="accent">BANDEIRAS TARIFÁRIAS</span></h1>
@@ -1408,10 +1410,12 @@ with tabs[0]:
             <div class="benefit"><span class="benefit-icon">▥</span>Decisões<br>mais informadas</div>
             <div class="benefit"><span class="benefit-icon">◆</span>Leitura integrada<br>do sistema elétrico</div>
           </div>
-          <div class="hero-side">ENERGIA<br>DADOS<br>RISCO<br>DECISÃO</div>
-                  <div class="hero-qr">
-            <img src="{qr_uri}" alt="QR Code do projeto">
-            <div class="hero-qr-label">Acesse<br>o projeto</div>
+          <div class="hero-right-cluster">
+            <div class="hero-qr">
+              <img src="{qr_uri}" alt="QR Code do projeto">
+              <div class="hero-qr-label">Acesse<br>o projeto</div>
+            </div>
+            <div class="hero-side">ENERGIA<br>DADOS<br>RISCO<br>DECISÃO</div>
           </div>
 </div>
 
