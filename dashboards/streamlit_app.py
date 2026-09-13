@@ -7,6 +7,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import streamlit as st
+import plotly.graph_objects as go
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
@@ -1070,52 +1071,6 @@ def closing_section():
 
 
 # ------------------------------------------------------------
-# Load Databricks data
-# ------------------------------------------------------------
-
-try:
-    df_bandeiras = load_bandeiras()
-    df_model = load_model_features()
-    df_clima = load_clima()
-    df_training = load_training()
-    df_sim_clima, df_sim_band, df_sim_ear = load_model_source_data()
-    db_ok = True
-    db_error = None
-except Exception as exc:
-    df_bandeiras = pd.DataFrame()
-    df_model = pd.DataFrame()
-    df_clima = pd.DataFrame()
-    df_training = pd.DataFrame()
-    df_sim_clima = pd.DataFrame()
-    df_sim_band = pd.DataFrame()
-    df_sim_ear = pd.DataFrame()
-    db_ok = False
-    db_error = str(exc)
-
-if db_ok and not df_bandeiras.empty:
-    df_bandeiras = safe_date(df_bandeiras, "MesCompetencia")
-    latest = df_bandeiras.sort_values("MesCompetencia").iloc[-1]
-    current_flag = flag_name(latest.get("NivelBandeira"))
-    current_date = str(latest.get("MesCompetencia"))[:10]
-    model_status = "Saída do modelo ainda não persistida em tabela"
-else:
-    current_flag = "—"
-    current_date = "Databricks indisponível"
-    model_status = "Conexão não disponível"
-
-
-tabs = st.tabs(
-    [
-        "⌂  Visão Geral",
-        "▣  Previsão",
-        "⌁  Variáveis",
-        "↗  Histórico",
-        "●  Modelo",
-        "▣  Metodologia",
-    ]
-)
-
-# ------------------------------------------------------------
 # STORYTELLING DASHBOARD
 # ------------------------------------------------------------
 
@@ -1306,6 +1261,70 @@ tabs = st.tabs([
     "06  Metodologia",
 ])
 
+def flag_history_chart(df):
+    """Evolução histórica com a linha segmentada pela cor da bandeira oficial."""
+    hist = month_index(df)
+    hist["NivelBandeira"] = pd.to_numeric(hist["NivelBandeira"], errors="coerce")
+    hist = hist.dropna(subset=["_mes_dashboard", "NivelBandeira"]).sort_values("_mes_dashboard")
+    if hist.empty:
+        st.warning("Histórico sem dados válidos para visualização.")
+        return
+
+    colors = {0: "#00b86b", 1: "#ffc400", 2: "#ff3b4e", 3: "#ff3b4e", 4: "#ff7a00"}
+    names = {0: "Verde", 1: "Amarela", 2: "Vermelha P1", 3: "Vermelha P2", 4: "Escassez Hídrica"}
+
+    fig = go.Figure()
+    x = hist["_mes_dashboard"].tolist()
+    y = hist["NivelBandeira"].astype(float).tolist()
+
+    # Segmentos coloridos: cada trecho assume a cor da bandeira observada no mês de origem.
+    for i in range(len(x) - 1):
+        level = int(round(y[i]))
+        fig.add_trace(go.Scatter(
+            x=[x[i], x[i + 1]],
+            y=[y[i], y[i + 1]],
+            mode="lines",
+            line=dict(color=colors.get(level, "#087cff"), width=3),
+            hoverinfo="skip",
+            showlegend=False,
+        ))
+
+    # Pontos coloridos e legenda oficial.
+    for level in sorted(colors):
+        mask = hist["NivelBandeira"].round().astype(int) == level
+        if mask.any():
+            fig.add_trace(go.Scatter(
+                x=hist.loc[mask, "_mes_dashboard"],
+                y=hist.loc[mask, "NivelBandeira"],
+                mode="markers",
+                name=names[level],
+                marker=dict(color=colors[level], size=7, line=dict(width=1, color="#061522")),
+                hovertemplate="<b>%{x|%m/%Y}</b><br>" + names[level] + "<extra></extra>",
+            ))
+
+    fig.update_layout(
+        height=390,
+        margin=dict(l=10, r=10, t=35, b=10),
+        paper_bgcolor="#07131f",
+        plot_bgcolor="#07131f",
+        font=dict(color="#cfe0eb"),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+        xaxis=dict(showgrid=False, color="#8fa8bb"),
+        yaxis=dict(
+            title="Nível da bandeira",
+            tickmode="array",
+            tickvals=[0, 1, 2, 3, 4],
+            ticktext=["Verde", "Amarela", "Vermelha P1", "Vermelha P2", "Escassez"],
+            gridcolor="#183042",
+            zeroline=False,
+            color="#8fa8bb",
+            range=[-0.2, 4.35],
+        ),
+        hovermode="x unified",
+    )
+    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+
+
 # ------------------------------------------------------------
 # TAB 1 — CONTEXTO
 # ------------------------------------------------------------
@@ -1432,8 +1451,8 @@ with tabs[1]:
         hist = hist.dropna(subset=["_mes_dashboard", "NivelBandeira"]).sort_values("_mes_dashboard")
 
         st.markdown("### Evolução das bandeiras")
-        st.caption("A série preserva os níveis oficiais observados no histórico.")
-        st.line_chart(hist.set_index("_mes_dashboard")["NivelBandeira"], use_container_width=True)
+        st.caption("A cor acompanha o nível oficial observado em cada mês.")
+        flag_history_chart(df_bandeiras)
 
         dist = hist.copy()
         dist["Bandeira"] = dist["NivelBandeira"].map(flag_name)
