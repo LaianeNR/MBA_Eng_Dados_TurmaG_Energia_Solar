@@ -1062,6 +1062,40 @@ st.markdown(
   }
 }
 
+
+    /* ========================================================
+       MODO APRESENTAÇÃO — tipografia ampliada para projeção
+       ======================================================== */
+    .stCaption, [data-testid="stCaptionContainer"],
+    [data-testid="stCaptionContainer"] p {
+        font-size: 14px !important;
+        line-height: 1.5 !important;
+    }
+    .section-title p, .update { font-size: 14px !important; line-height: 1.45 !important; }
+    .eyebrow { font-size: 12px !important; }
+    .question-text { font-size: 20px !important; }
+    .question-action { font-size: 14px !important; }
+    .risk-label { font-size: 13px !important; }
+    .risk-note { font-size: 14px !important; line-height: 1.5 !important; }
+    .impact-intro p { font-size: 15px !important; line-height: 1.65 !important; }
+    .impact-button { font-size: 13px !important; }
+    .impact-card h4 { font-size: 14px !important; }
+    .impact-card p { font-size: 14px !important; line-height: 1.65 !important; }
+    .performance-lead strong { font-size: 20px !important; }
+    .performance-lead span { font-size: 14px !important; }
+    .metric-proof-label { font-size: 13px !important; }
+    .metric-proof-main { font-size: 15px !important; }
+    .metric-proof-f1 { font-size: 15px !important; }
+    .metric-proof-foot { font-size: 14px !important; }
+    .threshold-note { font-size: 15px !important; line-height: 1.5 !important; }
+    .limitations-panel .limitation-label { font-size: 14px !important; }
+    .limitations-panel .limitation-text { font-size: 15px !important; line-height: 1.6 !important; }
+    .evidence-card p, .evidence-card li, .insight-card p, .insight-card li,
+    .story-card p, .story-card li { font-size: 14px !important; line-height: 1.6 !important; }
+    [data-testid="stDataFrame"] div[role="gridcell"],
+    [data-testid="stDataFrame"] div[role="columnheader"] { font-size: 14px !important; }
+    /* Navegação permanece no tamanho já aprovado. */
+    .st-key-presentation_nav button { font-size: 12px !important; }
 </style>
     """,
     unsafe_allow_html=True,
