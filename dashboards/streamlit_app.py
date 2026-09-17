@@ -1007,6 +1007,61 @@ st.markdown(
         .metric-proof-primary .metric-proof-value{font-size:48px !important;font-weight:800;line-height:1.05;}
         .metric-proof-primary .metric-proof-main{font-size:13px;font-weight:800;letter-spacing:.12em;margin-top:2px;}
         .threshold-note{margin-top:12px;padding:10px 14px;border:1px solid rgba(47,128,237,.35);border-radius:8px;font-size:13px;}
+/* Limitações: painel único para evitar o efeito de cartões soltos */
+.limitations-panel {
+  width: 100%;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: stretch;
+  gap: 0;
+  margin-top: 12px;
+  padding: 22px 26px;
+  border: 1px solid rgba(46, 160, 220, 0.32);
+  border-radius: 12px;
+  background: rgba(8, 38, 59, 0.72);
+}
+.limitations-panel .limitation-item {
+  padding: 4px 22px;
+}
+.limitations-panel .limitation-item:first-child {
+  padding-left: 0;
+}
+.limitations-panel .limitation-item:last-child {
+  padding-right: 0;
+}
+.limitations-panel .limitation-label {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.7px;
+  color: #f4f8fb;
+  margin-bottom: 10px;
+}
+.limitations-panel .limitation-text {
+  font-size: 14px;
+  line-height: 1.55;
+  color: rgba(214, 229, 239, 0.82);
+}
+.limitations-panel .limitation-divider {
+  width: 1px;
+  background: rgba(65, 166, 225, 0.28);
+}
+@media (max-width: 760px) {
+  .limitations-panel {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+  .limitations-panel .limitation-divider {
+    width: 100%;
+    height: 1px;
+  }
+  .limitations-panel .limitation-item,
+  .limitations-panel .limitation-item:first-child,
+  .limitations-panel .limitation-item:last-child {
+    padding: 0;
+  }
+}
+
 </style>
     """,
     unsafe_allow_html=True,
@@ -2160,16 +2215,15 @@ if current_page == 3:
     st.markdown("### Limitações")
     st.markdown(
         """
-        <div class="impact-grid">
-          <div class="impact-card">
-            <div class="impact-icon">•</div>
-            <h4>BASE HISTÓRICA</h4>
-            <p>A quantidade de observações mensais e a menor frequência da classe vermelha limitam a complexidade da modelagem.</p>
+        <div class="limitations-panel">
+          <div class="limitation-item">
+            <div class="limitation-label">BASE HISTÓRICA</div>
+            <div class="limitation-text">A quantidade de observações mensais e a menor frequência da classe vermelha limitam a complexidade da modelagem.</div>
           </div>
-          <div class="impact-card">
-            <div class="impact-icon">•</div>
-            <h4>CLIMA FUTURO</h4>
-            <p>A previsão utiliza dados climáticos observados no mês de referência; não incorpora uma previsão meteorológica futura.</p>
+          <div class="limitation-divider"></div>
+          <div class="limitation-item">
+            <div class="limitation-label">CLIMA FUTURO</div>
+            <div class="limitation-text">A previsão utiliza dados climáticos observados no mês de referência; não incorpora uma previsão meteorológica futura.</div>
           </div>
         </div>
         """,
