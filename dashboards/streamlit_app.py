@@ -1811,7 +1811,7 @@ if db_ok and not df_sim_clima.empty and not df_sim_band.empty and not df_sim_ear
 # ------------------------------------------------------------
 PAGE_NAMES = [
     "01  Contexto", "02  Histórico", "03  Sinais",
-    "04  Modelos", "05  Previsão", "06  Arquitetura",
+    "04  Arquitetura", "05  Modelos", "06  Previsão",
 ]
 
 if "presentation_page" not in st.session_state:
@@ -2120,9 +2120,9 @@ if current_page == 2:
 
 # ------------------------------------------------------------
 # ------------------------------------------------------------
-# TAB 4 — MODELOS
+# TAB 5 — MODELOS
 # ------------------------------------------------------------
-if current_page == 3:
+if current_page == 4:
     st.markdown(
         """
         <div class="section-head">
@@ -2265,9 +2265,9 @@ if current_page == 3:
     )
 
 # ------------------------------------------------------------
-# TAB 5 — PREVISÃO
+# TAB 6 — PREVISÃO
 # ------------------------------------------------------------
-if current_page == 4:
+if current_page == 5:
     st.markdown(
         f"""
         <div class="section-head">
@@ -2355,9 +2355,9 @@ ARCHITECTURE_HTML = r'''
 
 
 # ------------------------------------------------------------
-# TAB 6 — ARQUITETURA
+# TAB 4 — ARQUITETURA
 # ------------------------------------------------------------
-if current_page == 5:
+if current_page == 3:
     st.image(
         base64.b64decode(ARCHITECTURE_IMAGE_B64),
         use_container_width=True,
