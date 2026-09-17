@@ -2303,26 +2303,6 @@ if current_page == 4:
         unsafe_allow_html=True,
     )
 
-    if reference_available and forecast_results:
-        metricas_modelos = calculate_backtest_metrics()
-        st.markdown("#### Desempenho documentado por horizonte")
-        mcols = st.columns(3, gap="medium")
-        for idx, h in enumerate((1, 2, 3)):
-            m = metricas_modelos[h]
-            with mcols[idx]:
-                st.markdown(
-                    f"""
-                    <div class=\"metric-proof metric-proof-primary\">
-                      <div class=\"metric-proof-label\">M+{h} · BACKTEST</div>
-                      <div class=\"metric-proof-value\">{m['acuracia']:.1f}%</div>
-                      <div class=\"metric-proof-main\">ACURÁCIA</div>
-                      <div class=\"metric-proof-f1\">F1-score <strong>{m['f1']:.1f}%</strong></div>
-                      <div class=\"metric-proof-foot\">{m['n']} previsões · {m['inicio'].replace('-', '/')} a {m['fim'].replace('-', '/')}</div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
     st.markdown("### Por que o F1-score?")
     st.info(
         "A acurácia foi considerada, mas não foi usada isoladamente. Como a bandeira vermelha é a classe de interesse "
