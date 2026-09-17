@@ -590,6 +590,31 @@ st.markdown(
         line-height:1.55;
     }
 
+    .glossary-grid {
+        display:grid;
+        grid-template-columns:repeat(2,1fr);
+        gap:10px;
+        margin-bottom:6px;
+    }
+
+    .glossary-item {
+        padding:12px 14px;
+        border:1px solid #19435c;
+        border-radius:10px;
+        background:#092337;
+        color:#c7d6e1;
+        font-size:12px;
+        line-height:1.55;
+    }
+
+    .glossary-item strong {
+        color:#f2f7fa;
+    }
+
+    @media (max-width: 900px) {
+        .glossary-grid { grid-template-columns:1fr; }
+    }
+
     /* Evidence cards */
     .evidence-grid {
         display:grid;
@@ -1810,8 +1835,8 @@ if db_ok and not df_sim_clima.empty and not df_sim_band.empty and not df_sim_ear
 # Navegação da apresentação — um único app, sem abrir novas abas
 # ------------------------------------------------------------
 PAGE_NAMES = [
-    "01  Contexto", "02  Histórico", "03  Sinais",
-    "04  Arquitetura", "05  Modelos", "06  Previsão",
+    "01  Contexto", "02  Arquitetura", "03  Histórico",
+    "04  Sinais", "05  Modelos", "06  Previsão",
 ]
 
 if "presentation_page" not in st.session_state:
@@ -2001,6 +2026,36 @@ if current_page == 0:
         """
         <div class="section-head">
           <div class="section-title">
+            <h2>Siglas usadas nesta apresentação</h2>
+            <p>Um guia rápido de termos técnicos e regulatórios, para acompanhar a apresentação mesmo sem experiência no setor elétrico.</p>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        """
+        <div class="glossary-grid">
+          <div class="glossary-item"><strong>ANEEL</strong> — Agência Nacional de Energia Elétrica: órgão regulador que define e divulga as bandeiras tarifárias.</div>
+          <div class="glossary-item"><strong>ONS</strong> — Operador Nacional do Sistema Elétrico: entidade que opera o sistema elétrico e publica os dados de reservatórios e geração.</div>
+          <div class="glossary-item"><strong>INMET</strong> — Instituto Nacional de Meteorologia: fonte dos dados históricos de clima (chuva, temperatura, umidade).</div>
+          <div class="glossary-item"><strong>EAR</strong> — Energia Armazenada: percentual de energia disponível nos reservatórios das hidrelétricas; funciona como o “estoque” de água para gerar energia.</div>
+          <div class="glossary-item"><strong>ENA</strong> — Energia Natural Afluente: quanto de energia a chuva e o degelo trazem aos rios em um período; a “entrada” de água no sistema.</div>
+          <div class="glossary-item"><strong>CMO</strong> — Custo Marginal de Operação: custo de gerar um megawatt-hora adicional; sobe quando é preciso acionar usinas térmicas mais caras.</div>
+          <div class="glossary-item"><strong>PLD</strong> — Preço de Liquidação das Diferenças: preço da energia no mercado de curto prazo, referência de custo para o setor.</div>
+          <div class="glossary-item"><strong>GSF</strong> — Generation Scaling Factor: mede quanto as hidrelétricas geraram em relação ao esperado; valores baixos indicam maior risco hidrológico.</div>
+          <div class="glossary-item"><strong>ONI</strong> — Oceanic Niño Index: índice climático internacional que identifica El Niño e La Niña, fenômenos que afetam o regime de chuvas.</div>
+          <div class="glossary-item"><strong>ML</strong> — Machine Learning (aprendizado de máquina): técnicas que aprendem padrões em dados históricos para gerar previsões.</div>
+          <div class="glossary-item"><strong>API</strong> — Interface de Programação de Aplicações: canal técnico que permite que sistemas diferentes troquem dados automaticamente.</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown(
+        """
+        <div class="section-head">
+          <div class="section-title">
             <h2>Por que esse problema importa?</h2>
             <p>A bandeira tarifária transforma condições do sistema elétrico em impacto econômico.</p>
           </div>
@@ -2057,9 +2112,9 @@ if current_page == 0:
     )
 
 # ------------------------------------------------------------
-# TAB 2 — HISTÓRICO
+# TAB 3 — HISTÓRICO
 # ------------------------------------------------------------
-if current_page == 1:
+if current_page == 2:
     st.markdown(
         """
         <div class="section-head">
@@ -2107,9 +2162,9 @@ if current_page == 1:
         st.warning("Histórico indisponível.")
 
 # ------------------------------------------------------------
-# TAB 3 — SINAIS
+# TAB 4 — SINAIS
 # ------------------------------------------------------------
-if current_page == 2:
+if current_page == 3:
     st.markdown(
         """
         <div class="section-head">
@@ -2143,6 +2198,14 @@ if current_page == 2:
         ] if c in df_model.columns]
         if feature_cols:
             st.markdown("### Base refinada usada na modelagem")
+            meses_validos = pd.to_datetime(df_model["MesCompetencia"].astype(str), errors="coerce").dropna()
+            if not meses_validos.empty:
+                mes_inicio = month_label_pt(meses_validos.min())
+                mes_fim = month_label_pt(meses_validos.max())
+                st.caption(
+                    f"Base completa: {len(meses_validos)} meses, de {mes_inicio} a {mes_fim}. "
+                    "A tabela abaixo mostra apenas os 12 meses mais recentes como amostra."
+                )
             st.dataframe(df_model[["MesCompetencia"] + feature_cols].tail(12), use_container_width=True, hide_index=True)
 
     if reference_available:
@@ -2189,56 +2252,76 @@ if current_page == 4:
     )
 
     st.markdown("### Abordagens avaliadas")
+    st.caption("Evolução das tentativas de modelagem ao longo do projeto — somente o que foi efetivamente testado, sem números.")
     model_cards = """
     <div class="impact-grid">
       <div class="impact-card">
         <div class="impact-icon">01</div>
         <h4>ÁRVORE DE DECISÃO</h4>
-        <p>Primeira abordagem de classificação, utilizando variáveis climáticas do mês anterior.</p>
+        <p>Classificação binária com variáveis climáticas do mês anterior.</p>
       </div>
       <div class="impact-card">
         <div class="impact-icon">02</div>
         <h4>REGRESSÃO LOGÍSTICA</h4>
-        <p>Classificação binária com variáveis climáticas e persistência da bandeira.</p>
+        <p>Persistência da bandeira combinada a variáveis climáticas.</p>
       </div>
       <div class="impact-card">
         <div class="impact-icon">03</div>
-        <h4>ESPECIFICAÇÃO DO NOTEBOOK 07</h4>
-        <p>Regressão logística com clima, persistência, EAR e régua de marcos regulatórios.</p>
+        <h4>REGRESSÃO + ONI</h4>
+        <p>Persistência e clima acrescidos do índice climático ONI (El Niño / La Niña).</p>
+      </div>
+      <div class="impact-card">
+        <div class="impact-icon">04</div>
+        <h4>MULTICLASSE</h4>
+        <p>Classificação em verde/amarela/vermelha, incorporando o CMO e ampliando as variáveis testadas.</p>
+      </div>
+      <div class="impact-card">
+        <div class="impact-icon">05</div>
+        <h4>COMPARAÇÃO METODOLÓGICA</h4>
+        <p>Confronto entre persistência, classe majoritária e as receitas anteriores, incluindo uma regressão ordinal, sob o mesmo protocolo de validação temporal.</p>
+      </div>
+      <div class="impact-card">
+        <div class="impact-icon">06</div>
+        <h4>VARIÁVEIS ADICIONAIS</h4>
+        <p>Investigação de carga, ENA regional e evolução da EAR para avaliar ganho incremental.</p>
       </div>
     </div>
     """
     st.markdown(model_cards, unsafe_allow_html=True)
 
-    st.markdown("### Teste final documentado")
-    st.caption("Resultados registrados pelo grupo no teste final dos últimos 24 meses nunca vistos no treino.")
-    comparison = pd.DataFrame([
-        {
-            "Modelo": "Árvore de decisão · clima",
-            "Acurácia": "75,00%",
-            "F1-score": "62,50%",
-        },
-        {
-            "Modelo": "Regressão logística · + persistência",
-            "Acurácia": "91,67%",
-            "F1-score": "88,89%",
-        },
-        {
-            "Modelo": "Regressão logística · + persistência + ONI",
-            "Acurácia": "91,67%",
-            "F1-score": "88,89%",
-        },
-    ])
-    st.dataframe(
-        comparison,
-        use_container_width=True,
-        hide_index=True,
-        column_config={
-            "Modelo": st.column_config.TextColumn("Modelo"),
-            "Acurácia": st.column_config.TextColumn("Acurácia"),
-            "F1-score": st.column_config.TextColumn("F1-score"),
-        },
+    st.markdown("### Notebook 07 — modelo em defesa")
+    st.caption("Especificação, variáveis e desempenho documentado do modelo que o grupo está defendendo.")
+    st.markdown(
+        """
+        <div class="impact-grid">
+          <div class="impact-card"><div class="impact-icon">◆</div><h4>TIPO DE MODELO</h4><p>Regressão logística, com pipeline de imputação por mediana e padronização (StandardScaler).</p></div>
+          <div class="impact-card"><div class="impact-icon">≈</div><h4>VARIÁVEIS CLIMÁTICAS</h4><p>Mês do ano, chuva média, chuva % da normal histórica (corrigida contra vazamento), temperatura e umidade.</p></div>
+          <div class="impact-card"><div class="impact-icon">⚑</div><h4>PERSISTÊNCIA E HIDROLOGIA</h4><p>Bandeira do mês anterior e EAR (%) do subsistema Sudeste.</p></div>
+          <div class="impact-card"><div class="impact-icon">▥</div><h4>MARCOS REGULATÓRIOS</h4><p>Régua com 4 marcos regulatórios do setor elétrico ao longo do período analisado.</p></div>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
+
+    if reference_available and forecast_results:
+        metricas_modelos = calculate_backtest_metrics()
+        st.markdown("#### Desempenho documentado por horizonte")
+        mcols = st.columns(3, gap="medium")
+        for idx, h in enumerate((1, 2, 3)):
+            m = metricas_modelos[h]
+            with mcols[idx]:
+                st.markdown(
+                    f"""
+                    <div class=\"metric-proof metric-proof-primary\">
+                      <div class=\"metric-proof-label\">M+{h} · BACKTEST</div>
+                      <div class=\"metric-proof-value\">{m['acuracia']:.1f}%</div>
+                      <div class=\"metric-proof-main\">ACURÁCIA</div>
+                      <div class=\"metric-proof-f1\">F1-score <strong>{m['f1']:.1f}%</strong></div>
+                      <div class=\"metric-proof-foot\">{m['n']} previsões · {m['inicio'].replace('-', '/')} a {m['fim'].replace('-', '/')}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
 
     st.markdown("### Por que o F1-score?")
     st.info(
@@ -2393,12 +2476,38 @@ ARCHITECTURE_HTML = r'''
 
 
 # ------------------------------------------------------------
-# TAB 4 — ARQUITETURA
+# TAB 2 — ARQUITETURA
 # ------------------------------------------------------------
-if current_page == 3:
+if current_page == 1:
+    st.markdown(
+        """
+        <div class="section-head">
+          <div class="section-title">
+            <h2>Como os dados chegam do dado bruto à previsão?</h2>
+            <p>Uma arquitetura em camadas no Databricks conecta fontes públicas, tratamento de dados e o modelo preditivo.</p>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
     st.image(
         base64.b64decode(ARCHITECTURE_IMAGE_B64),
         use_container_width=True,
+    )
+
+    st.markdown("### Tópicos para apresentar")
+    st.markdown(
+        """
+        <div class="impact-grid">
+          <div class="impact-card"><div class="impact-icon">01</div><h4>FONTES DE DADOS</h4><p>APIs meteorológicas (INMET/CPTEC), dados operacionais do sistema elétrico (ANEEL, ENA, Carga, CMO) e o histórico regulatório de bandeiras.</p></div>
+          <div class="impact-card"><div class="impact-icon">02</div><h4>LAKEHOUSE NO DATABRICKS</h4><p>Os dados brutos passam por camadas de tratamento (Stage → Bronze → Silver → Gold) até chegarem como features prontas para os modelos.</p></div>
+          <div class="impact-card"><div class="impact-icon">03</div><h4>CONSUMO E VALOR</h4><p>As camadas confiáveis alimentam o dashboard em Streamlit, relatórios operacionais e os modelos de previsão (M+1, M+2, M+3).</p></div>
+          <div class="impact-card"><div class="impact-icon">04</div><h4>PLATAFORMA E GOVERNANÇA</h4><p>Databricks, GitHub, Python, Spark e SQL sustentam a jornada; catálogo de dados, linhagem e controle de acesso garantem rastreabilidade.</p></div>
+          <div class="impact-card"><div class="impact-icon">05</div><h4>APIS E DATA SERVICES</h4><p>Camada final de disponibilização dos dados para sistemas externos — será demonstrada em tempo real na apresentação.</p></div>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
 
 # Navegação inferior: mesma página, sem abrir nova aba.
