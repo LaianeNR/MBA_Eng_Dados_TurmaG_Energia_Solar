@@ -4,6 +4,7 @@ import base64
 import math
 import os
 from pathlib import Path
+import textwrap
 
 import numpy as np
 import pandas as pd
@@ -77,12 +78,19 @@ st.markdown(
 
     /* Top brand */
     .brandbar {
+        position: sticky;
+        top: 0;
+        z-index: 1100;
         display:flex;
         align-items:center;
         justify-content:space-between;
         gap:30px;
-        padding: 4px 2px 20px 2px;
+        min-height:72px;
+        padding: 8px 2px 12px 2px;
         border-bottom: 1px solid var(--line-soft);
+        background: rgba(6,21,34,.98);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
     }
 
     .brand-left {
@@ -106,7 +114,7 @@ st.markdown(
     }
 
     .brand-name {
-        font-size:18px;
+        font-size:19px;
         font-weight:800;
         letter-spacing:.4px;
         color:#f6fbff;
@@ -115,7 +123,7 @@ st.markdown(
     .brand-sub {
         margin-top:2px;
         color:#87a2b6;
-        font-size:10px;
+        font-size:11px;
         letter-spacing:.2px;
     }
 
@@ -683,7 +691,7 @@ st.markdown(
     /* Navegação fixa, discreta e uniforme */
     [data-testid="stRadio"] {
         position: sticky;
-        top: 0;
+        top: 72px;
         z-index: 1000;
         margin: 0 0 18px 0;
         padding: 8px 0 10px 0;
@@ -707,13 +715,13 @@ st.markdown(
     [data-testid="stRadio"] div[role="radiogroup"] > label {
         box-sizing: border-box;
         width: 100%;
-        min-height: 42px;
-        padding: 7px 6px;
+        min-height: 46px;
+        padding: 8px 6px;
         border: 1px solid #16405d;
         border-radius: 8px;
         background: #0a2133;
         color: #9fb5c6;
-        font-size: 11px;
+        font-size: 12px;
         font-weight: 800;
         line-height: 1.1;
         cursor: pointer;
@@ -792,8 +800,8 @@ st.markdown(
         background:#062238;
         position:relative;
     }
-    .arch-panel-title { font-size:14px; font-weight:800; letter-spacing:.4px; }
-    .arch-panel-sub { font-size:10px; color:#9bb3c5; margin:3px 0 10px; }
+    .arch-panel-title { font-size:18px; font-weight:800; letter-spacing:.4px; }
+    .arch-panel-sub { font-size:13px; color:#9bb3c5; margin:3px 0 10px; }
     .arch-source-card, .arch-value-card {
         border:1px solid #15567f;
         border-radius:7px;
@@ -804,34 +812,34 @@ st.markdown(
         margin-top:8px;
         background:#082943;
         min-height:67px;
-        font-size:10px;
-        line-height:1.35;
+        font-size:13px;
+        line-height:1.4;
     }
-    .arch-source-card b, .arch-value-card b { font-size:11px; color:#f5f9fc; }
+    .arch-source-card b, .arch-value-card b { font-size:14px; color:#f5f9fc; }
     .arch-source-card span, .arch-value-card span { color:#9fb7c8; }
-    .arch-icon { color:#16a0ff; font-size:22px; width:25px; min-width:25px; text-align:center; line-height:1; }
+    .arch-icon { color:#16a0ff; font-size:28px; width:25px; min-width:25px; text-align:center; line-height:1; }
     .lakehouse { padding-bottom:14px; }
     .arch-layers { display:grid; grid-template-columns:repeat(4,1fr); gap:9px; }
     .arch-layer {
         border:1px solid #2380b5;
         border-radius:7px;
-        padding:10px 9px 9px;
+        padding:13px 12px 12px;
         background:#06243a;
-        min-height:250px;
+        min-height:290px;
     }
     .arch-layer.stage { border-color:#178bd0; }
     .arch-layer.bronze { border-color:#9a6230; }
     .arch-layer.silver { border-color:#b8bfd4; }
     .arch-layer.gold { border-color:#c9ad12; }
-    .layer-icon { text-align:center; font-size:27px; color:#16a0ff; height:34px; }
+    .layer-icon { text-align:center; font-size:32px; color:#16a0ff; height:34px; }
     .bronze .layer-icon { color:#ef9d43; }
     .silver .layer-icon { color:#c7d0e6; }
     .gold .layer-icon { color:#ffd321; }
-    .layer-name { text-align:center; font-size:12px; font-weight:800; margin-bottom:7px; }
+    .layer-name { text-align:center; font-size:16px; font-weight:800; margin-bottom:7px; }
     .bronze .layer-name { color:#efad61; }
     .silver .layer-name { color:#eef2ff; }
     .gold .layer-name { color:#ffe02c; }
-    .arch-layer ul { margin:0; padding-left:15px; color:#a8bfd0; font-size:9px; line-height:1.5; }
+    .arch-layer ul { margin:0; padding-left:18px; color:#a8bfd0; font-size:12px; line-height:1.55; }
     .arch-value-card { min-height:62px; }
     .arch-strip {
         display:grid;
@@ -843,8 +851,8 @@ st.markdown(
         overflow:hidden;
         background:#06243a;
     }
-    .arch-strip-title { padding:8px 10px; font-size:10px; line-height:1.25; }
-    .arch-strip-title b { display:block; font-size:11px; }
+    .arch-strip-title { padding:10px 12px; font-size:12px; line-height:1.25; }
+    .arch-strip-title b { display:block; font-size:13px; }
     .arch-strip-title span { color:#8fa8bb; }
     .arch-tool { padding:8px 8px; border-left:1px solid #15567f; display:flex; flex-direction:column; justify-content:center; font-size:10px; }
     .arch-tool small { color:#8fa8bb; font-size:8px; margin-top:2px; }
@@ -2014,7 +2022,7 @@ if current_page == 4:
 # ------------------------------------------------------------
 if current_page == 5:
     st.markdown(
-        """
+        textwrap.dedent("""
         <div class="arch-wrap">
           <div class="arch-title-row">
             <div class="arch-accent"></div>
@@ -2158,32 +2166,6 @@ if current_page == 5:
             <div class="arch-side">DADOS<br>ANÁLISE<br>RESULTADO</div>
           </div>
         </div>
-        """,
+        """),
         unsafe_allow_html=True,
     )
-
-# ------------------------------------------------------------
-# NAVEGAÇÃO INFERIOR — mesma largura para os dois botões
-# ------------------------------------------------------------
-st.markdown('<div class="presentation-bottom"></div>', unsafe_allow_html=True)
-prev_col, mid_col, next_col = st.columns([1, 1, 1])
-
-with prev_col:
-    prev_disabled = current_page == 0
-    if st.button("← Anterior", use_container_width=True, disabled=prev_disabled, key="nav_prev"):
-        st.session_state.presentation_page = current_page - 1
-        st.rerun()
-
-with mid_col:
-    st.caption(
-        f"<div style='text-align:center; padding-top:8px;'>"
-        f"{current_page + 1} / {len(PAGE_NAMES)}"
-        f"</div>",
-        unsafe_allow_html=True,
-    )
-
-with next_col:
-    next_disabled = current_page == len(PAGE_NAMES) - 1
-    if st.button("Próxima →", use_container_width=True, disabled=next_disabled, key="nav_next"):
-        st.session_state.presentation_page = current_page + 1
-        st.rerun()
