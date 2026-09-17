@@ -2163,21 +2163,26 @@ if current_page == 4:
         )
 
         metricas = calculate_backtest_metrics()
-        cards = []
-        for h in (1, 2, 3):
+
+        # Renderização em colunas nativas para evitar que o Streamlit interprete
+        # partes dos cartões HTML como texto. Cada horizonte fica visualmente
+        # separado e a acurácia permanece como métrica protagonista.
+        cols = st.columns(3, gap="medium")
+        for idx, h in enumerate((1, 2, 3)):
             m = metricas[h]
-            cards.append(
-                f"""
-                <div class=\"metric-proof metric-proof-primary\">
-                  <div class=\"metric-proof-label\">M+{h} · BACKTEST</div>
-                  <div class=\"metric-proof-value\">{m['acuracia']:.1f}%</div>
-                  <div class=\"metric-proof-main\">ACURÁCIA</div>
-                  <div class=\"metric-proof-f1\">F1-score <strong>{m['f1']:.1f}%</strong></div>
-                  <div class=\"metric-proof-foot\">{m['n']} previsões · {m['inicio'].replace('-', '/')} a {m['fim'].replace('-', '/')}</div>
-                </div>
-                """
-            )
-        st.markdown('<div class=\"metric-proof-grid metric-proof-grid-primary\">' + ''.join(cards) + '</div>', unsafe_allow_html=True)
+            with cols[idx]:
+                st.markdown(
+                    f"""
+                    <div class=\"metric-proof metric-proof-primary\">
+                      <div class=\"metric-proof-label\">M+{h} · BACKTEST</div>
+                      <div class=\"metric-proof-value\">{m['acuracia']:.1f}%</div>
+                      <div class=\"metric-proof-main\">ACURÁCIA</div>
+                      <div class=\"metric-proof-f1\">F1-score <strong>{m['f1']:.1f}%</strong></div>
+                      <div class=\"metric-proof-foot\">{m['n']} previsões · {m['inicio'].replace('-', '/')} a {m['fim'].replace('-', '/')}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
 
         st.markdown(
             "<div class=\"threshold-note\"><strong>Limiar de classificação: 50%</strong> · probabilidades a partir desse limiar são classificadas como bandeira vermelha.</div>",
