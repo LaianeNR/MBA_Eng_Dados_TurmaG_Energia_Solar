@@ -1640,6 +1640,33 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# Se a navegação foi acionada, reposiciona a nova página no topo.
+# O pequeno componente JS atua no documento pai do Streamlit e não altera
+# a navegação interna nem abre outra aba.
+if st.session_state.get("scroll_to_top", False):
+    components.html(
+        """
+        <script>
+        (function() {
+            function top() {
+                try { window.parent.scrollTo({top: 0, left: 0, behavior: 'instant'}); } catch(e) {}
+                try { document.documentElement.scrollTop = 0; } catch(e) {}
+                try { document.body.scrollTop = 0; } catch(e) {}
+                try {
+                    var els = window.parent.document.querySelectorAll('section.main, [data-testid=stAppViewContainer], [data-testid=stMain]');
+                    els.forEach(function(el) { el.scrollTop = 0; });
+                } catch(e) {}
+            }
+            top();
+            setTimeout(top, 80);
+            setTimeout(top, 250);
+        })();
+        </script>
+        """,
+        height=0,
+    )
+    st.session_state.scroll_to_top = False
+
 # ------------------------------------------------------------
 # Load Databricks data
 # ------------------------------------------------------------
@@ -1700,9 +1727,12 @@ PAGE_NAMES = [
 
 if "presentation_page" not in st.session_state:
     st.session_state.presentation_page = 0
+if "scroll_to_top" not in st.session_state:
+    st.session_state.scroll_to_top = False
 
 def go_to_page(index: int):
     st.session_state.presentation_page = index
+    st.session_state.scroll_to_top = True
 
 current_page = max(0, min(int(st.session_state.presentation_page), len(PAGE_NAMES) - 1))
 
@@ -2107,11 +2137,25 @@ if current_page == 3:
             f"{len(df_training):,} observações na camada refined. "
             "A visualização abaixo mostra o início e o fim da base para deixar explícita a janela temporal."
         )
-        c1, c2 = st.columns(2)
-        with c1:
-            st.dataframe(df_training.head(6), use_container_width=True, hide_index=True)
-        with c2:
-            st.dataframe(df_training.tail(6), use_container_width=True, hide_index=True)
+        # A tabela anterior ficava dividida em duas colunas e podia cortar
+        # visualmente as últimas colunas em telas menores. Agora mostramos
+        # uma amostra única, em largura total, com os indicadores essenciais.
+        cols_treino = [
+            "MesCompetencia", "IsVermelha_M0",
+            "EAR_M0", "ENA_M0", "ChuvaMedia_M0",
+            "Target_M1", "Target_M2", "Target_M3"
+        ]
+        cols_treino = [c for c in cols_treino if c in df_training.columns]
+        treino_amostra = pd.concat([
+            df_training.head(4),
+            df_training.tail(4)
+        ], ignore_index=True)
+        st.dataframe(
+            treino_amostra[cols_treino],
+            use_container_width=True,
+            hide_index=True,
+        )
+        st.caption("Amostra do início e do fim da série. As colunas exibidas destacam referência, hidrologia, clima e os três horizontes do alvo.")
 
     st.markdown("### Limitações")
     st.markdown(
@@ -2239,6 +2283,7 @@ with c_prev:
     if current_page > 0:
         if st.button("← Anterior", use_container_width=True, key=f"nav_prev_{current_page}"):
             st.session_state.presentation_page = current_page - 1
+            st.session_state.scroll_to_top = True
             st.rerun()
 
 with c_page:
@@ -2252,4 +2297,5 @@ with c_next:
     if current_page < len(PAGE_NAMES) - 1:
         if st.button("Próxima →", use_container_width=True, key=f"nav_next_{current_page}"):
             st.session_state.presentation_page = current_page + 1
+            st.session_state.scroll_to_top = True
             st.rerun()
