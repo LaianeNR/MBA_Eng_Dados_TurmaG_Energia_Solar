@@ -9,6 +9,7 @@ import textwrap
 import numpy as np
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 import plotly.graph_objects as go
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
@@ -64,7 +65,7 @@ st.markdown(
 
     .main .block-container {
         max-width: 1180px;
-        padding-top: 1.2rem;
+        padding-top: 9.6rem;
         padding-bottom: 3rem;
     }
 
@@ -78,15 +79,17 @@ st.markdown(
 
     /* Top brand */
     .brandbar {
-        position: sticky;
+        position: fixed;
         top: 0;
-        z-index: 1100;
+        left: 0;
+        right: 0;
+        z-index: 10000;
         display:flex;
         align-items:center;
         justify-content:space-between;
         gap:30px;
-        min-height:72px;
-        padding: 8px 2px 12px 2px;
+        min-height:82px;
+        padding: 7px 4vw 8px 4vw;
         border-bottom: 1px solid var(--line-soft);
         background: rgba(6,21,34,.98);
         backdrop-filter: blur(14px);
@@ -128,7 +131,7 @@ st.markdown(
     }
 
     .brand-qr { display:flex; flex-direction:column; align-items:center; gap:5px; }
-    .brand-qr img { width:104px; height:104px; display:block; background:#fff; padding:4px; border-radius:6px; }
+    .brand-qr img { width:82px; height:82px; display:block; background:#fff; padding:4px; border-radius:6px; }
     .brand-qr-label { color:#9fb5c6; font-size:8px; line-height:1.15; text-align:center; text-transform:uppercase; letter-spacing:.8px; }
 
     .brand-meta {
@@ -151,6 +154,48 @@ st.markdown(
         font-size:16px;
         vertical-align:middle;
         margin-right:7px;
+    }
+
+    .presentation-fixed-nav {
+        position: fixed;
+        top: 98px;
+        left: 0;
+        right: 0;
+        z-index: 9999;
+        background: rgba(6,21,34,.98);
+        border-bottom: 1px solid var(--line-soft);
+        box-shadow: 0 8px 24px rgba(0,0,0,.20);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+        padding: 7px 4vw 8px 4vw;
+    }
+    .presentation-nav-inner {
+        max-width: 1180px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: repeat(6, minmax(0,1fr));
+        gap: 7px;
+    }
+    .presentation-nav-item {
+        min-height: 38px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-decoration: none !important;
+        color: #b9cddd !important;
+        background: #081d2e;
+        border: 1px solid #16405d;
+        border-radius: 7px;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: .15px;
+        transition: all .15s ease;
+    }
+    .presentation-nav-item:hover, .presentation-nav-item.active {
+        color: #ffffff !important;
+        border-color: #087cff;
+        background: #0c2b44;
+        box-shadow: inset 0 -2px 0 #087cff;
     }
 
     /* Hero */
@@ -1548,23 +1593,29 @@ PAGE_NAMES = [
     "06  Arquitetura",
 ]
 
-if "presentation_page" not in st.session_state:
-    st.session_state.presentation_page = 0
+def get_presentation_page():
+    try:
+        value = int(st.query_params.get("page", "0"))
+    except (TypeError, ValueError):
+        value = 0
+    return max(0, min(value, len(PAGE_NAMES) - 1))
 
-def render_presentation_nav():
-    # Sem key: o índice é controlado pelo estado da página e pode ser alterado
-    # pelos botões inferior/superior sem StreamlitWidgetAlreadyInstantiatedError.
-    selected = st.radio(
-        "Navegação da apresentação",
-        PAGE_NAMES,
-        index=int(st.session_state.presentation_page),
-        horizontal=True,
-        label_visibility="collapsed",
-    )
-    st.session_state.presentation_page = PAGE_NAMES.index(selected)
-    return st.session_state.presentation_page
+def render_presentation_nav(page):
+    items = []
+    for i, name in enumerate(PAGE_NAMES):
+        active = " active" if i == page else ""
+        items.append(f'<a class="presentation-nav-item{active}" href="?page={i}">{name}</a>')
+    nav_html = """
+    <div class="presentation-fixed-nav">
+      <div class="presentation-nav-inner">
+        {items}
+      </div>
+    </div>
+    """.format(items="".join(items))
+    st.markdown(nav_html, unsafe_allow_html=True)
 
-current_page = render_presentation_nav()
+current_page = get_presentation_page()
+render_presentation_nav(current_page)
 
 def flag_history_chart(df):
     """Evolução histórica com a linha segmentada pela cor da bandeira oficial."""
@@ -2018,154 +2069,17 @@ if current_page == 4:
 # ------------------------------------------------------------
 
 # ------------------------------------------------------------
+ARCHITECTURE_HTML = r'''
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><style>
+*{box-sizing:border-box}body{margin:0;background:#061522;color:#f4f8fc;font-family:Arial,Helvetica,sans-serif}.wrap{width:100%;padding:10px 4px 22px}.head{display:flex;gap:14px;align-items:flex-start;margin-bottom:14px}.bar{width:6px;min-height:72px;background:#1595ff;border-radius:2px}.kicker{font-size:14px;font-weight:800;letter-spacing:1.4px;color:#1595ff;margin:2px 0 4px}.title{font-size:31px;line-height:1.05;font-weight:800;margin:0}.subtitle{font-size:13px;color:#b5c7d5;margin-top:7px}.main{display:grid;grid-template-columns:1.05fr 2.25fr 1.05fr;gap:14px;align-items:stretch}.panel{border:1px solid #17608d;border-radius:10px;background:#071d2d;padding:14px}.ptitle{font-size:17px;font-weight:800;letter-spacing:.4px}.psub{font-size:11px;color:#9fb5c6;margin-top:3px;margin-bottom:12px}.card{border:1px solid #15527a;border-radius:8px;background:#082338;padding:12px;margin-top:9px;display:flex;gap:10px;align-items:flex-start;min-height:82px}.icon{width:34px;height:34px;border:1px solid #087cff;border-radius:7px;display:flex;align-items:center;justify-content:center;color:#16a0ff;font-size:20px;flex:0 0 34px}.card b{font-size:13px}.card span,.card div{font-size:11px;line-height:1.45;color:#c7d6e1}.layers{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}.layer{border-radius:8px;padding:12px;min-height:260px;background:#081f31;border:1px solid #17608d}.layer.stage{border-color:#087cff}.layer.bronze{border-color:#e49a43}.layer.silver{border-color:#a9b7ca}.layer.gold{border-color:#d8b900}.layericon{font-size:26px;margin-bottom:6px}.lname{font-size:16px;font-weight:800;margin-bottom:7px}.stage .lname{color:#35a9ff}.bronze .lname{color:#f2a44e}.silver .lname{color:#e0e8f2}.gold .lname{color:#ffe04a}.layer ul{margin:0;padding-left:17px}.layer li{font-size:11px;line-height:1.5;color:#c7d6e1;margin-bottom:5px}.value .card{min-height:76px}.value .icon{border-color:#087cff}.strip{margin-top:14px;display:grid;grid-template-columns:2.0fr repeat(5,1fr);border:1px solid #17608d;border-radius:8px;overflow:hidden;background:#071d2d}.strip.gov{grid-template-columns:2.0fr repeat(4,1fr)}.striptitle{padding:11px 13px;border-right:1px solid #17608d}.striptitle b{display:block;font-size:12px}.striptitle span{display:block;font-size:10px;color:#9fb5c6;margin-top:3px}.tool{padding:11px 10px;border-right:1px solid #17608d;display:flex;flex-direction:column;justify-content:center;gap:3px}.tool:last-child{border-right:0}.tool b{font-size:11px;color:#f4f8fc}.tool small{font-size:9px;color:#9fb5c6}.quote{margin-top:12px;border:1px solid #17608d;border-radius:8px;background:#082338;padding:12px;display:flex;align-items:center;gap:12px}.qmark{font-size:40px;line-height:.7;color:#1595ff}.quote b{font-size:12px}.quote div{font-size:10px;color:#c7d6e1;line-height:1.45}.side{margin-left:auto;color:#1595ff;font-size:9px;letter-spacing:1px;text-align:right}@media(max-width:900px){.main{grid-template-columns:1fr}.layers{grid-template-columns:repeat(2,1fr)}.strip,.strip.gov{grid-template-columns:1fr 1fr}.striptitle{grid-column:1/-1;border-right:0;border-bottom:1px solid #17608d}.title{font-size:25px}}
+</style></head><body><div class="wrap"><div class="head"><div class="bar"></div><div><div class="kicker">ARQUITETURA DE DADOS</div><div class="title">Previsão de Bandeira Vermelha</div><div class="subtitle">Da coleta dos dados à geração de insights. Uma arquitetura escalável, segura e orientada a dados.</div></div></div><div class="main"><div class="panel"><div class="ptitle">FONTES DE DADOS</div><div class="psub">Dados de múltiplas origens</div><div class="card"><div class="icon">☁</div><div><b>APIs Meteorológicas</b><br><span>(INMET / CPTEC)</span><br><span>Dados climáticos</span></div></div><div class="card"><div class="icon">♜</div><div><b>Dados Operacionais</b><br><span>(usinas · ANEEL, ENA,<br>Carga, CMO)</span></div></div><div class="card"><div class="icon">▤</div><div><b>Histórico Regulatório</b><br><span>(ANEEL · Bandeiras Tarifárias)</span><br><span>Regras e critérios</span></div></div></div><div class="panel"><div class="ptitle">LAKEHOUSE — DATABRICKS</div><div class="psub">Armazenamento, processamento e dados confiáveis</div><div class="layers"><div class="layer stage"><div class="layericon">▱</div><div class="lname">STAGE</div><ul><li>Arquivos brutos</li><li>Ingestão (Landing Zone)</li><li>Formatos: csv, json, parquet, zip</li><li>Dados no formato original</li></ul></div><div class="layer bronze"><div class="layericon">▥</div><div class="lname">BRONZE</div><ul><li>Dados brutos tipados</li><li>Delta Tables</li><li>Histórico</li><li>Preserva dados originais</li></ul></div><div class="layer silver"><div class="layericon">▤</div><div class="lname">SILVER</div><ul><li>Dados estruturados e confiáveis</li><li>Limpeza e padronização</li><li>Validação de regras de negócio</li><li>Delta Tables e Views SQL</li></ul></div><div class="layer gold"><div class="layericon">▥</div><div class="lname">GOLD</div><ul><li>Agregações e indicadores</li><li>Star Schema</li><li>Features para ML</li><li>Delta Tables e Views SQL</li><li>Dados prontos para consumo</li></ul></div></div></div><div class="panel value"><div class="ptitle">CONSUMO E VALOR</div><div class="psub">Insights, aplicações e previsão</div><div class="card"><div class="icon">♛</div><div><b>Streamlit</b><br><span>• Painéis de custo e previsão</span><br><span>• Análises interativas</span></div></div><div class="card"><div class="icon">▣</div><div><b>Relatórios</b><br><span>• Carga &amp; Geração</span><br><span>• Relatórios operacionais</span><br><span>• Relatórios gerenciais</span></div></div><div class="card"><div class="icon">✣</div><div><b>Modelos de Previsão (ML)</b><br><span>• Previsão de Bandeira</span><br><span>• Modelos de Machine Learning</span><br><span>M+1, M+2, M+3</span></div></div><div class="card"><div class="icon">☁</div><div><b>API / Data Services</b><br><span>• Disponibilização de dados</span><br><span>• Integração com sistemas externos</span><br><span>• Testes via Postman</span></div></div></div></div><div class="strip"><div class="striptitle"><b>PLATAFORMA DE DADOS (TRANSVERSAL)</b><span>Tecnologias e ferramentas utilizadas em toda a jornada de dados</span></div><div class="tool"><b>▱ Databricks</b><small>Workflows, Jobs, Notebooks</small></div><div class="tool"><b>◉ GitHub</b><small>Versionamento / CI-CD</small></div><div class="tool"><b>🐍 Python</b><small>Desenvolvimento</small></div><div class="tool"><b>✦ Spark</b><small>Processamento</small></div><div class="tool"><b>▤ SQL</b><small>Consultas</small></div></div><div class="strip gov"><div class="striptitle"><b>GOVERNANÇA E QUALIDADE (TRANSVERSAL)</b><span>Garantia de dados confiáveis, seguros e rastreáveis</span></div><div class="tool"><b>▤ Catálogo de Dados</b><small>Metadados</small></div><div class="tool"><b>⌘ Linhagem</b><small>Data Lineage</small></div><div class="tool"><b>♢ Segurança</b><small>Controle de Acesso</small></div><div class="tool"><b>◷ Gerenciamento de Delta Table</b><small>Histórico · Vacuum · Restore</small></div></div><div class="quote"><div class="qmark">“</div><div><b>Dados bem estruturados transformam complexidade em decisões melhores.</b><br><span>Uma arquitetura moderna para um setor elétrico mais inteligente.</span></div><div class="side">DADOS<br>ANÁLISE<br>RESULTADO</div></div></div></body></html>
+'''
+
 # TAB 6 — ARQUITETURA
-# ------------------------------------------------------------
 if current_page == 5:
-    st.markdown(
-        textwrap.dedent("""
-        <div class="arch-wrap">
-          <div class="arch-title-row">
-            <div class="arch-accent"></div>
-            <div>
-              <div class="arch-kicker">ARQUITETURA DE DADOS</div>
-              <div class="arch-title">Previsão de Bandeira Vermelha</div>
-              <div class="arch-subtitle">Da coleta dos dados à geração de insights. Uma arquitetura escalável, segura e orientada a dados.</div>
-            </div>
-          </div>
-
-          <div class="arch-main">
-
-            <div class="arch-panel sources">
-              <div class="arch-panel-title">FONTES DE DADOS</div>
-              <div class="arch-panel-sub">Dados de múltiplas origens</div>
-
-              <div class="arch-source-card">
-                <div class="arch-icon">☁</div>
-                <div><b>APIs Meteorológicas</b><br><span>(INMET / CPTEC)</span><br>Dados climáticos</div>
-              </div>
-
-              <div class="arch-source-card">
-                <div class="arch-icon">♜</div>
-                <div><b>Dados Operacionais</b><br><span>(usinas · ANEEL, ENA,<br>Carga, CMO)</span></div>
-              </div>
-
-              <div class="arch-source-card">
-                <div class="arch-icon">▤</div>
-                <div><b>Histórico Regulatório</b><br><span>(ANEEL · Bandeiras Tarifárias)</span><br>Regras e critérios</div>
-              </div>
-            </div>
-
-            <div class="arch-panel lakehouse">
-              <div class="arch-panel-title">LAKEHOUSE — DATABRICKS</div>
-              <div class="arch-panel-sub">Armazenamento, processamento e dados confiáveis</div>
-
-              <div class="arch-layers">
-
-                <div class="arch-layer stage">
-                  <div class="layer-icon">▱</div>
-                  <div class="layer-name">STAGE</div>
-                  <ul>
-                    <li>Arquivos brutos</li>
-                    <li>Ingestão (Landing Zone)</li>
-                    <li>Formatos: csv, json,<br>parquet, zip</li>
-                    <li>Dados no formato<br>original</li>
-                  </ul>
-                </div>
-
-                <div class="arch-layer bronze">
-                  <div class="layer-icon">▥</div>
-                  <div class="layer-name">BRONZE</div>
-                  <ul>
-                    <li>Dados brutos tipados</li>
-                    <li>Delta Tables</li>
-                    <li>Histórico</li>
-                    <li>Preserva dados<br>originais</li>
-                  </ul>
-                </div>
-
-                <div class="arch-layer silver">
-                  <div class="layer-icon">▤</div>
-                  <div class="layer-name">SILVER</div>
-                  <ul>
-                    <li>Dados estruturados<br>e confiáveis</li>
-                    <li>Limpeza e padronização</li>
-                    <li>Validação de regras<br>de negócio</li>
-                    <li>Delta Tables e<br>Views SQL</li>
-                  </ul>
-                </div>
-
-                <div class="arch-layer gold">
-                  <div class="layer-icon">▥</div>
-                  <div class="layer-name">GOLD</div>
-                  <ul>
-                    <li>Agregações e indicadores</li>
-                    <li>Star Schema</li>
-                    <li>Features para ML</li>
-                    <li>Delta Tables e<br>Views SQL</li>
-                    <li>Dados prontos<br>para consumo</li>
-                  </ul>
-                </div>
-
-              </div>
-            </div>
-
-            <div class="arch-panel value">
-              <div class="arch-panel-title">CONSUMO E VALOR</div>
-              <div class="arch-panel-sub">Insights, aplicações e previsão</div>
-
-              <div class="arch-value-card">
-                <div class="arch-icon">♛</div>
-                <div><b>Streamlit</b><br>• Painéis de custo e previsão<br>• Análises interativas</div>
-              </div>
-
-              <div class="arch-value-card">
-                <div class="arch-icon">▣</div>
-                <div><b>Relatórios</b><br>• Carga &amp; Geração<br>• Relatórios operacionais<br>• Relatórios gerenciais</div>
-              </div>
-
-              <div class="arch-value-card">
-                <div class="arch-icon">✣</div>
-                <div><b>Modelos de Previsão (ML)</b><br>• Previsão de Bandeira<br>• Modelos de Machine Learning<br>M+1, M+2, M+3</div>
-              </div>
-
-              <div class="arch-value-card">
-                <div class="arch-icon">☁</div>
-                <div><b>API / Data Services</b><br>• Disponibilização de dados<br>• Integração com sistemas externos<br>• Testes via Postman</div>
-              </div>
-            </div>
-
-          </div>
-
-          <div class="arch-strip">
-            <div class="arch-strip-title">
-              <b>PLATAFORMA DE DADOS (TRANSVERSAL)</b>
-              <span>Tecnologias e ferramentas utilizadas em toda a jornada de dados</span>
-            </div>
-            <div class="arch-tool"><b>▱ Databricks</b><small>Workflows, Jobs, Notebooks</small></div>
-            <div class="arch-tool"><b>◉ GitHub</b><small>Versionamento / CI-CD</small></div>
-            <div class="arch-tool"><b>🐍 Python</b><small>Desenvolvimento</small></div>
-            <div class="arch-tool"><b>✦ Spark</b><small></small></div>
-            <div class="arch-tool"><b>▤ SQL</b><small></small></div>
-          </div>
-
-          <div class="arch-strip">
-            <div class="arch-strip-title">
-              <b>GOVERNANÇA E QUALIDADE (TRANSVERSAL)</b>
-              <span>Garantia de dados confiáveis, seguros e rastreáveis</span>
-            </div>
-            <div class="arch-tool"><b>▤ Catálogo de Dados</b><small>Metadados</small></div>
-            <div class="arch-tool"><b>⌘ Linhagem</b><small>Data Lineage</small></div>
-            <div class="arch-tool"><b>♢ Segurança</b><small>Controle de Acesso</small></div>
-            <div class="arch-tool"><b>◷ Gerenciamento de Delta Table</b><small>Histórico · Vacuum · Restore</small></div>
-          </div>
-
-          <div class="arch-quote">
-            <span class="quote-mark">“</span>
-            <div><b>Dados bem estruturados transformam complexidade em decisões melhores.</b><br>
-            Uma arquitetura moderna para um setor elétrico mais inteligente.</div>
-            <div class="arch-side">DADOS<br>ANÁLISE<br>RESULTADO</div>
-          </div>
-        </div>
-        """),
-        unsafe_allow_html=True,
+    components.html(
+        ARCHITECTURE_HTML,
+        height=860,
+        scrolling=False,
     )
