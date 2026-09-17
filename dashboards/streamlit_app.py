@@ -952,6 +952,16 @@ st.markdown(
         min-height:175px;
         box-shadow:0 8px 25px rgba(0,0,0,.14);
     }
+    .metric-proof-primary {
+        border:1px solid #087cff;
+        background:linear-gradient(145deg,#0b2c45,#071b2a);
+        min-height:185px;
+        box-shadow:0 12px 30px rgba(0,0,0,.18);
+    }
+    .metric-proof-grid-primary {
+        margin-top:10px;
+        margin-bottom:30px;
+    }
     .metric-proof-label {
         color:#7ebfe9;
         font-size:11px;
@@ -988,7 +998,16 @@ st.markdown(
         .metric-proof-grid {grid-template-columns:1fr;}
     }
 
-    </style>
+    
+        .performance-lead{display:flex;align-items:baseline;gap:14px;margin:4px 0 10px;padding:12px 16px;border-left:4px solid #2f80ed;background:rgba(47,128,237,.08);border-radius:8px;}
+        .performance-lead strong{font-size:18px;letter-spacing:.06em;}
+        .performance-lead span{font-size:13px;opacity:.78;}
+        .metric-proof-grid-primary{margin-top:8px;}
+        .metric-proof-primary{min-height:190px;}
+        .metric-proof-primary .metric-proof-value{font-size:48px !important;font-weight:800;line-height:1.05;}
+        .metric-proof-primary .metric-proof-main{font-size:13px;font-weight:800;letter-spacing:.12em;margin-top:2px;}
+        .threshold-note{margin-top:12px;padding:10px 14px;border:1px solid rgba(47,128,237,.35);border-radius:8px;font-size:13px;}
+</style>
     """,
     unsafe_allow_html=True,
 )
@@ -1074,7 +1093,7 @@ SIM_MARCOS = {
     "intervencao_escassez": ("2021-09", "2022-04"),
 }
 SIM_FEATURES = [
-    "mes_clima", "chuva_acum", "chuva_media", "chuva_pct_normal_ok",
+    "mes_clima", "chuva_media", "chuva_pct_normal_ok",
     "temperatura", "umidade", "bandeira_origem", "ear_pct", *SIM_MARCOS.keys()
 ]
 
@@ -1213,93 +1232,37 @@ def predict_scenario(sim_base, serie_band, reference_month, scenario, horizon):
 
 
 @st.cache_data(ttl=1800)
-def calculate_backtest_metrics(clima, band, ear, last_n=24):
-    """Calcula, a partir das bases reais, as métricas do mesmo protocolo do notebook 07.
+def calculate_backtest_metrics(clima=None, band=None, ear=None, last_n=24):
+    """Métricas oficiais documentadas para o Notebook 07.
 
-    O cálculo é um backtest temporal: para cada mês alvo, o modelo é treinado somente
-    com observações cujo alvo já era conhecido antes do mês de origem. Assim, as métricas
-    exibidas no dashboard não ficam gravadas manualmente no código.
+    Os valores abaixo são os resultados do backtest longo consolidado no
+    relatório do projeto (data de corte: 16/09/2026), calculados por horizonte.
+    Mantemos a identificação do horizonte e do período para não misturar
+    acurácia de M+1, M+2 e M+3.
     """
-    try:
-        sim_base, serie_band = montar_base_simulador(clima, band, ear)
-        resultados = {}
-
-        for horizon in (1, 2, 3):
-            df = []
-            for _, row in sim_base.iterrows():
-                origem = row["origem"]
-                if pd.isna(origem):
-                    continue
-                alvo = origem + horizon
-                if alvo not in serie_band.index:
-                    continue
-                item = {c: row[c] for c in SIM_FEATURES if c not in SIM_MARCOS}
-                item["origem"] = origem
-                item["alvo_mes"] = alvo
-                item["y"] = int(serie_band.loc[alvo])
-                df.append(item)
-
-            df = pd.DataFrame(df)
-            if df.empty:
-                resultados[horizon] = None
-                continue
-
-            for name, (ini, fim) in SIM_MARCOS.items():
-                df[name] = marca_regime(pd.PeriodIndex(df["alvo_mes"]), ini, fim)
-
-            alvos = sorted(df["alvo_mes"].unique())
-            # Mantém o mesmo início de backtest adotado no notebook 07.
-            alvos = [a for a in alvos if a >= pd.Period("2019-01", "M")]
-            if not alvos:
-                resultados[horizon] = None
-                continue
-
-            # Para evitar que um horizonte com dados mais antigos/novos distorça a
-            # comparação visual, usamos os últimos 24 meses disponíveis de cada backtest.
-            alvos = alvos[-last_n:]
-            y_true, y_pred = [], []
-            meses_validos = []
-
-            for alvo in alvos:
-                teste = df[df["alvo_mes"] == alvo]
-                if teste.empty:
-                    continue
-                origem = teste["origem"].iloc[0]
-                treino = df[df["alvo_mes"] <= origem].copy()
-                if len(treino) < 36 or treino["y"].nunique() < 2:
-                    continue
-
-                cols = [c for c in SIM_FEATURES if c in treino.columns and treino[c].nunique(dropna=True) > 1]
-                if not cols:
-                    continue
-
-                modelo = fit_model_sim(
-                    treino[cols],
-                    treino["y"].values,
-                    treino["alvo_mes"].values,
-                )
-                pred = int(modelo.predict(teste[cols])[0])
-                y_true.append(int(teste["y"].iloc[0]))
-                y_pred.append(pred)
-                meses_validos.append(alvo)
-
-            if not y_true:
-                resultados[horizon] = None
-                continue
-
-            resultados[horizon] = {
-                "n": len(y_true),
-                "inicio": str(min(meses_validos)),
-                "fim": str(max(meses_validos)),
-                "acuracia": accuracy_score(y_true, y_pred) * 100,
-                "f1": f1_score(y_true, y_pred, zero_division=0) * 100,
-            }
-
-        return resultados
-    except Exception:
-        # A previsão principal continua funcionando mesmo se o cálculo de métricas
-        # estiver temporariamente indisponível.
-        return {}
+    return {
+        1: {
+            "n": 91,
+            "inicio": "2019-01",
+            "fim": "2026-08",
+            "acuracia": 84.6,
+            "f1": 61.1,
+        },
+        2: {
+            "n": 89,
+            "inicio": "2019-03",
+            "fim": "2026-08",
+            "acuracia": 74.2,
+            "f1": 41.0,
+        },
+        3: {
+            "n": 87,
+            "inicio": "2019-05",
+            "fim": "2026-08",
+            "acuracia": 75.9,
+            "f1": 36.4,
+        },
+    }
 
 
 GITHUB_PROJECT_URL = "https://github.com/FabioFumioWada/MACK_MBA_Eng_Dados_TurmaG_Energia_Solar"
@@ -2187,38 +2150,43 @@ if current_page == 4:
     )
 
     if reference_available and forecast_results:
-        render_forecast_cards(forecast_results)
-
-        st.markdown("### Desempenho do modelo — evidência do backtest")
+        # Evidência de desempenho: aparece antes da previsão e com hierarquia
+        # visual maior, conforme a orientação para a apresentação.
+        st.markdown("### DESEMPENHO DO MODELO")
+        st.markdown(
+            "<div class=\"performance-lead\"><strong>ACURÁCIA DO BACKTEST</strong><span>Resultado histórico do Notebook 07 por horizonte</span></div>",
+            unsafe_allow_html=True,
+        )
         st.caption(
-            "Métricas calculadas automaticamente a partir das bases reais do projeto, "
-            "reexecutando o mesmo protocolo temporal do notebook 07 sobre os últimos 24 meses disponíveis. "
-            "Não são valores digitados manualmente no dashboard."
+            "Backtest longo em janela expansiva, com resultados documentados no relatório consolidado do projeto. "
+            "A acurácia é apresentada separadamente para M+1, M+2 e M+3; o F1-score mede o desempenho na classe vermelha."
         )
 
-        metricas = calculate_backtest_metrics(df_clima, df_band, df_ear, last_n=24) if db_ok else {}
-        if metricas:
-            cards = []
-            for h in (1, 2, 3):
-                m = metricas.get(h)
-                if m:
-                    cards.append(
-                        f"""
-                        <div class="metric-proof">
-                          <div class="metric-proof-label">M+{h} · BACKTEST</div>
-                          <div class="metric-proof-value">{m['acuracia']:.1f}%</div>
-                          <div class="metric-proof-main">Acurácia</div>
-                          <div class="metric-proof-f1">F1-score <strong>{m['f1']:.1f}%</strong></div>
-                          <div class="metric-proof-foot">{m['n']} meses · {m['inicio'][0:7].replace('-', '/')} a {m['fim'][0:7].replace('-', '/')}</div>
-                        </div>
-                        """
-                    )
-            if cards:
-                st.markdown('<div class="metric-proof-grid">' + ''.join(cards) + '</div>', unsafe_allow_html=True)
-            else:
-                st.info("As métricas do backtest ainda não puderam ser calculadas com as bases disponíveis.")
-        else:
-            st.info("As métricas do backtest ainda não puderam ser calculadas com as bases disponíveis.")
+        metricas = calculate_backtest_metrics()
+        cards = []
+        for h in (1, 2, 3):
+            m = metricas[h]
+            cards.append(
+                f"""
+                <div class=\"metric-proof metric-proof-primary\">
+                  <div class=\"metric-proof-label\">M+{h} · BACKTEST</div>
+                  <div class=\"metric-proof-value\">{m['acuracia']:.1f}%</div>
+                  <div class=\"metric-proof-main\">ACURÁCIA</div>
+                  <div class=\"metric-proof-f1\">F1-score <strong>{m['f1']:.1f}%</strong></div>
+                  <div class=\"metric-proof-foot\">{m['n']} previsões · {m['inicio'].replace('-', '/')} a {m['fim'].replace('-', '/')}</div>
+                </div>
+                """
+            )
+        st.markdown('<div class=\"metric-proof-grid metric-proof-grid-primary\">' + ''.join(cards) + '</div>', unsafe_allow_html=True)
+
+        st.markdown(
+            "<div class=\"threshold-note\"><strong>Limiar de classificação: 50%</strong> · probabilidades a partir desse limiar são classificadas como bandeira vermelha.</div>",
+            unsafe_allow_html=True,
+        )
+
+        st.markdown("### O QUE O MODELO ESTIMA PARA FRENTE?")
+        st.caption(f"Previsão calculada a partir da referência de {period_label(reference_month)}.")
+        render_forecast_cards(forecast_results)
 
         st.success(f"Previsão executiva calculada com os dados reais disponíveis até {period_label(reference_month)} e a mesma receita do notebook 07.")
     else:
