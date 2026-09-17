@@ -15,6 +15,7 @@ from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import accuracy_score, f1_score
 
 st.set_page_config(
     page_title="Previsão de Bandeiras | Energy Intelligence",
@@ -937,6 +938,56 @@ st.markdown(
         font-weight: 700 !important;
     }
 
+    .metric-proof-grid {
+        display:grid;
+        grid-template-columns:repeat(3,1fr);
+        gap:16px;
+        margin:12px 0 18px;
+    }
+    .metric-proof {
+        background:linear-gradient(145deg,#0a2539,#071b2a);
+        border:1px solid #17608d;
+        border-radius:12px;
+        padding:20px 20px 17px;
+        min-height:175px;
+        box-shadow:0 8px 25px rgba(0,0,0,.14);
+    }
+    .metric-proof-label {
+        color:#7ebfe9;
+        font-size:11px;
+        font-weight:800;
+        letter-spacing:1.2px;
+    }
+    .metric-proof-value {
+        color:#f5f9fd;
+        font-size:42px;
+        line-height:1.05;
+        font-weight:800;
+        margin-top:9px;
+    }
+    .metric-proof-main {
+        color:#b7c9d7;
+        font-size:14px;
+        margin-top:2px;
+    }
+    .metric-proof-f1 {
+        margin-top:14px;
+        color:#d6e4ee;
+        font-size:14px;
+    }
+    .metric-proof-f1 strong {
+        color:#35a9ff;
+        font-size:17px;
+    }
+    .metric-proof-foot {
+        margin-top:12px;
+        color:#7f98aa;
+        font-size:11px;
+    }
+    @media(max-width:800px){
+        .metric-proof-grid {grid-template-columns:1fr;}
+    }
+
     </style>
     """,
     unsafe_allow_html=True,
@@ -1159,6 +1210,96 @@ def predict_scenario(sim_base, serie_band, reference_month, scenario, horizon):
     x_scenario = pd.DataFrame([scenario_row])[SIM_FEATURES]
     probability = float(model.predict_proba(x_scenario)[0][1])
     return probability, reference_month + horizon, len(train)
+
+
+@st.cache_data(ttl=1800)
+def calculate_backtest_metrics(clima, band, ear, last_n=24):
+    """Calcula, a partir das bases reais, as métricas do mesmo protocolo do notebook 07.
+
+    O cálculo é um backtest temporal: para cada mês alvo, o modelo é treinado somente
+    com observações cujo alvo já era conhecido antes do mês de origem. Assim, as métricas
+    exibidas no dashboard não ficam gravadas manualmente no código.
+    """
+    try:
+        sim_base, serie_band = montar_base_simulador(clima, band, ear)
+        resultados = {}
+
+        for horizon in (1, 2, 3):
+            df = []
+            for _, row in sim_base.iterrows():
+                origem = row["origem"]
+                if pd.isna(origem):
+                    continue
+                alvo = origem + horizon
+                if alvo not in serie_band.index:
+                    continue
+                item = {c: row[c] for c in SIM_FEATURES if c not in SIM_MARCOS}
+                item["origem"] = origem
+                item["alvo_mes"] = alvo
+                item["y"] = int(serie_band.loc[alvo])
+                df.append(item)
+
+            df = pd.DataFrame(df)
+            if df.empty:
+                resultados[horizon] = None
+                continue
+
+            for name, (ini, fim) in SIM_MARCOS.items():
+                df[name] = marca_regime(pd.PeriodIndex(df["alvo_mes"]), ini, fim)
+
+            alvos = sorted(df["alvo_mes"].unique())
+            # Mantém o mesmo início de backtest adotado no notebook 07.
+            alvos = [a for a in alvos if a >= pd.Period("2019-01", "M")]
+            if not alvos:
+                resultados[horizon] = None
+                continue
+
+            # Para evitar que um horizonte com dados mais antigos/novos distorça a
+            # comparação visual, usamos os últimos 24 meses disponíveis de cada backtest.
+            alvos = alvos[-last_n:]
+            y_true, y_pred = [], []
+            meses_validos = []
+
+            for alvo in alvos:
+                teste = df[df["alvo_mes"] == alvo]
+                if teste.empty:
+                    continue
+                origem = teste["origem"].iloc[0]
+                treino = df[df["alvo_mes"] <= origem].copy()
+                if len(treino) < 36 or treino["y"].nunique() < 2:
+                    continue
+
+                cols = [c for c in SIM_FEATURES if c in treino.columns and treino[c].nunique(dropna=True) > 1]
+                if not cols:
+                    continue
+
+                modelo = fit_model_sim(
+                    treino[cols],
+                    treino["y"].values,
+                    treino["alvo_mes"].values,
+                )
+                pred = int(modelo.predict(teste[cols])[0])
+                y_true.append(int(teste["y"].iloc[0]))
+                y_pred.append(pred)
+                meses_validos.append(alvo)
+
+            if not y_true:
+                resultados[horizon] = None
+                continue
+
+            resultados[horizon] = {
+                "n": len(y_true),
+                "inicio": str(min(meses_validos)),
+                "fim": str(max(meses_validos)),
+                "acuracia": accuracy_score(y_true, y_pred) * 100,
+                "f1": f1_score(y_true, y_pred, zero_division=0) * 100,
+            }
+
+        return resultados
+    except Exception:
+        # A previsão principal continua funcionando mesmo se o cálculo de métricas
+        # estiver temporariamente indisponível.
+        return {}
 
 
 GITHUB_PROJECT_URL = "https://github.com/FabioFumioWada/MACK_MBA_Eng_Dados_TurmaG_Energia_Solar"
@@ -2047,6 +2188,38 @@ if current_page == 4:
 
     if reference_available and forecast_results:
         render_forecast_cards(forecast_results)
+
+        st.markdown("### Desempenho do modelo — evidência do backtest")
+        st.caption(
+            "Métricas calculadas automaticamente a partir das bases reais do projeto, "
+            "reexecutando o mesmo protocolo temporal do notebook 07 sobre os últimos 24 meses disponíveis. "
+            "Não são valores digitados manualmente no dashboard."
+        )
+
+        metricas = calculate_backtest_metrics(df_clima, df_band, df_ear, last_n=24) if db_ok else {}
+        if metricas:
+            cards = []
+            for h in (1, 2, 3):
+                m = metricas.get(h)
+                if m:
+                    cards.append(
+                        f"""
+                        <div class="metric-proof">
+                          <div class="metric-proof-label">M+{h} · BACKTEST</div>
+                          <div class="metric-proof-value">{m['acuracia']:.1f}%</div>
+                          <div class="metric-proof-main">Acurácia</div>
+                          <div class="metric-proof-f1">F1-score <strong>{m['f1']:.1f}%</strong></div>
+                          <div class="metric-proof-foot">{m['n']} meses · {m['inicio'][0:7].replace('-', '/')} a {m['fim'][0:7].replace('-', '/')}</div>
+                        </div>
+                        """
+                    )
+            if cards:
+                st.markdown('<div class="metric-proof-grid">' + ''.join(cards) + '</div>', unsafe_allow_html=True)
+            else:
+                st.info("As métricas do backtest ainda não puderam ser calculadas com as bases disponíveis.")
+        else:
+            st.info("As métricas do backtest ainda não puderam ser calculadas com as bases disponíveis.")
+
         st.success(f"Previsão executiva calculada com os dados reais disponíveis até {period_label(reference_month)} e a mesma receita do notebook 07.")
     else:
         st.warning(f"A referência {period_label(reference_month)} não está disponível nas fontes necessárias para calcular a previsão.")
